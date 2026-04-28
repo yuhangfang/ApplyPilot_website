@@ -50,6 +50,19 @@ POLL_INTERVAL = config.DEFAULTS["poll_interval"]
 # Thread-safe shutdown coordination
 _stop_event = threading.Event()
 
+
+def request_hub_apply_stop() -> None:
+    """Signal the apply pipeline to stop (Hub Stop button). Mirrors first Ctrl+C: skip/kill Claude."""
+    _stop_event.set()
+    with _claude_lock:
+        for wid, cproc in list(_claude_procs.items()):
+            if cproc.poll() is None:
+                try:
+                    _kill_process_tree(cproc.pid)
+                except Exception:
+                    logger.exception("hub apply stop: kill Claude worker %s", wid)
+
+
 # Track active Claude Code processes for skip (Ctrl+C) handling
 _claude_procs: dict[int, subprocess.Popen] = {}
 _claude_lock = threading.Lock()

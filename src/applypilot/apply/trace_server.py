@@ -368,6 +368,11 @@ class HubRequestHandler(BaseHTTPRequestHandler):
 
                 threading.Thread(target=_apply, daemon=True).start()
                 self._send_json(202, {"ok": True, "message": "apply session started"})
+            elif path == "/api/apply/stop":
+                from applypilot.apply.launcher import request_hub_apply_stop
+
+                request_hub_apply_stop()
+                self._send_json(200, {"ok": True, "message": "stop requested"})
             else:
                 self.send_error(404)
         except ValueError as e:

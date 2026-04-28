@@ -2,7 +2,7 @@
 
 > **Upstream:** Based on [ApplyPilot](https://github.com/Pickle-Pixel/ApplyPilot) by Pickle-Pixel. Not affiliated with applypilot.app or other commercial “ApplyPilot” products. This copy has no `LICENSE` / `CONTRIBUTING` in-repo; see upstream for those.
 
-**You control the app in the browser.** A small local **Hub** (127.0.0.1) is the main interface: stats, job dashboard, pipeline run, **Apply live** (URL + Run, live trace), and **Settings** (profile, resume, searches, env check, doctor). The machine also runs **Claude Code + Playwright** in the background for form automation when you start a run from the UI.
+**You control the app in the browser.** A small local **Hub** (127.0.0.1) is the main interface: **Dashboard** (API keys alert + **Job board** with Diagnosis and embedded jobs HTML), **Explore** (score distribution + pipeline run), **Apply live** (URL + Run, live trace), and **Profile** (JSON, resume, searches, env check, doctor). The machine also runs **Claude Code + Playwright** in the background for form automation when you start a run from the UI.
 
 **Python 3.11+** · work from the **repository root** so `.env` and `APPLYPILOT_DIR` resolve.
 
@@ -19,7 +19,7 @@ The repo includes **`env.placeholder`**: a **checked-in template** with fake pla
    ```
 
 2. **Edit `.env`** and replace the placeholders with your real **Gemini** (or OpenAI / `LLM_URL`) credentials.  
-   - If you leave placeholders or omit keys, the app will **remind you** in three ways: **warning in the terminal** when the hub starts, a **yellow banner on the Home tab** in the browser, and **append-only lines** in **`logs/env_reminder.log`** under your data directory (e.g. `demo/user-data/logs/env_reminder.log` when using the demo profile path).
+   - If you leave placeholders or omit keys, the app will **remind you** in three ways: **warning in the terminal** when the hub starts, a **yellow banner on the Dashboard tab** in the browser, and **append-only lines** in **`logs/env_reminder.log`** under your data directory (e.g. `demo/user-data/logs/env_reminder.log` when using the demo profile path).
 
 3. Optional: set **`APPLYPILOT_DIR=demo/user-data`** in `.env` to use the bundled **fake** profile and resume (safe for tests).
 
@@ -49,12 +49,10 @@ Your browser opens the Hub. **Apply live** → paste an application URL → **Ru
 
 | Tab | Purpose |
 |-----|---------|
-| **Home** | Stats, doctor tier, and (if keys are missing) a **configure API keys** banner |
-| **Explore** | Score distribution |
-| **Jobs** | Embedded pipeline dashboard HTML |
-| **Pipeline** | Run discovery→tailor stages from the browser |
+| **Dashboard** | **API keys** banner (if needed) + **Job board** (embedded jobs HTML from your DB) with **Diagnosis** (database stats + doctor tier) shown as a compact footnote |
+| **Explore** | Score distribution and **Run pipeline** (discovery→tailor stages from the browser) |
 | **Apply live** | URL + Run, SSE trace (assistant, tools, tool results, usage) |
-| **Settings** | Profile JSON, resume upload, searches.yaml, **Environment** (key presence, not values), doctor |
+| **Profile** | Profile JSON, resume upload, searches.yaml, **Environment** (key presence, not values), doctor |
 
 ---
 
