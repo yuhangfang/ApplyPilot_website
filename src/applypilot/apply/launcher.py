@@ -26,6 +26,7 @@ from rich.live import Live
 from applypilot import config
 from applypilot.database import get_connection
 from applypilot.apply import chrome, dashboard, prompt as prompt_mod
+from applypilot.apply.observe import ApplyObserver
 from applypilot.apply.chrome import (
     launch_chrome, cleanup_worker, kill_all_chrome,
     reset_worker_dir, cleanup_on_exit, _kill_process_tree,
@@ -55,9 +56,9 @@ _claude_lock = threading.Lock()
 
 # Register cleanup on exit
 atexit.register(cleanup_on_exit)
-if platform.system() != "Windows":
-    signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
-
+# Do not call signal.signal at import time: the hub loads this module from a
+# worker thread (POST /api/apply/session), and signals may only be registered
+# from the main interpreter thread.
 
 # ---------------------------------------------------------------------------
 # MCP config
@@ -87,6 +88,103 @@ def _make_mcp_config(cdp_port: int) -> dict:
 # Database operations
 # ---------------------------------------------------------------------------
 
+
+def _target_url_sql_clause(target_url: str) -> tuple[str, tuple]:
+    """Build (SQL fragment, params) matching job url / application_url.
+
+    Boards like Lever often paste ``.../uuid/apply?...`` while the DB may store
+    the same path without ``/apply`` — include both patterns.
+    """
+    stripped = target_url.split("?")[0].rstrip("/")
+    patterns = [f"%{stripped}%"]
+    if stripped.endswith("/apply"):
+        patterns.append(f"%{stripped[:-len('/apply')]}%")
+    patterns = list(dict.fromkeys(patterns))
+    parts = ["url = ?", "application_url = ?"]
+    params: list = [target_url, target_url]
+    for p in patterns:
+        parts.append("(url LIKE ? OR application_url LIKE ?)")
+        params.extend([p, p])
+    return "(" + " OR ".join(parts) + ")", tuple(params)
+
+
+def synthetic_test_form_job(application_url: str) -> dict:
+    """Minimal job dict for --test-form: open URL and fill using master resume (no DB row)."""
+    from applypilot.config import RESUME_PATH, RESUME_PDF_PATH
+
+    url = application_url.strip()
+    if not RESUME_PDF_PATH.exists():
+        raise FileNotFoundError(
+            "test-form requires ~/.applypilot/resume.pdf (upload a PDF resume or copy from init)."
+        )
+    return {
+        "url": url,
+        "application_url": url,
+        "title": "Form-fill test (no DB job)",
+        "site": "test",
+        "fit_score": 7,
+        "tailored_resume_path": str(RESUME_PATH),
+        "location": "",
+        "full_description": (
+            "TEST MODE: This URL was not loaded from the database. "
+            "Use the live application page to read labels and fill every field from profile + resume."
+        ),
+        "cover_letter_path": None,
+    }
+
+
+def diagnose_acquire_miss(target_url: str, _min_score: int) -> str:
+    """Explain why acquire_job(target_url) may have returned None."""
+    where_sql, params = _target_url_sql_clause(target_url.strip())
+    conn = get_connection()
+    n_any = conn.execute(
+        f"SELECT COUNT(*) FROM jobs WHERE {where_sql}",
+        params,
+    ).fetchone()[0]
+    if n_any == 0:
+        return (
+            "No job row matches this URL in your database (tried with and without /apply and "
+            "without query string). Discover/enrich the posting first, then run score → tailor."
+        )
+    n_tail = conn.execute(
+        f"SELECT COUNT(*) FROM jobs WHERE {where_sql} AND tailored_resume_path IS NOT NULL",
+        params,
+    ).fetchone()[0]
+    if n_tail == 0:
+        return (
+            f"Found {n_any} matching row(s) but none have a tailored resume yet. "
+            "Run the pipeline through tailor (and cover/pdf if you use them)."
+        )
+    row = conn.execute(
+        f"""
+        SELECT fit_score, apply_status FROM jobs
+        WHERE {where_sql} AND tailored_resume_path IS NOT NULL
+        ORDER BY (fit_score IS NULL), fit_score DESC LIMIT 1
+        """,
+        params,
+    ).fetchone()
+    if row is None:
+        return "Unexpected: tailored rows exist but query returned none."
+    st = row["apply_status"] or ""
+    if st == "in_progress":
+        return "This job is already in_progress (stuck lock?). Fix apply_status in the DB or wait."
+    if st == "applied":
+        return "This job is already marked applied in the database."
+    from applypilot.config import is_manual_ats
+
+    rowm = conn.execute(
+        f"SELECT url, application_url FROM jobs WHERE {where_sql} AND tailored_resume_path IS NOT NULL LIMIT 1",
+        params,
+    ).fetchone()
+    if rowm and is_manual_ats(rowm["application_url"] or rowm["url"]):
+        return (
+            "This posting matches a manual/skip ATS in config — ApplyPilot will not auto-apply here."
+        )
+    return (
+        "Could not acquire (e.g. another filter). Check apply_status and apply_error on the matching job row."
+    )
+
+
 def acquire_job(target_url: str | None = None, min_score: int = 7,
                 worker_id: int = 0) -> dict | None:
     """Atomically acquire the next job to apply to.
@@ -104,16 +202,19 @@ def acquire_job(target_url: str | None = None, min_score: int = 7,
         conn.execute("BEGIN IMMEDIATE")
 
         if target_url:
-            like = f"%{target_url.split('?')[0].rstrip('/')}%"
-            row = conn.execute("""
+            where_sql, tparams = _target_url_sql_clause(target_url)
+            row = conn.execute(
+                f"""
                 SELECT url, title, site, application_url, tailored_resume_path,
                        fit_score, location, full_description, cover_letter_path
                 FROM jobs
-                WHERE (url = ? OR application_url = ? OR application_url LIKE ? OR url LIKE ?)
+                WHERE {where_sql}
                   AND tailored_resume_path IS NOT NULL
                   AND apply_status != 'in_progress'
                 LIMIT 1
-            """, (target_url, target_url, like, like)).fetchone()
+                """,
+                tparams,
+            ).fetchone()
         else:
             blocked_sites, blocked_patterns = _load_blocked()
             # Build parameterized filters to avoid SQL injection
@@ -294,8 +395,25 @@ def reset_failed() -> int:
 # Per-job execution
 # ---------------------------------------------------------------------------
 
-def run_job(job: dict, port: int, worker_id: int = 0,
-            model: str = "sonnet", dry_run: bool = False) -> tuple[str, int]:
+def _notify_observers(
+    observers: list[ApplyObserver] | None, method: str, *args: object
+) -> None:
+    if not observers:
+        return
+    for obs in observers:
+        fn = getattr(obs, method, None)
+        if fn is not None:
+            fn(*args)
+
+
+def run_job(
+    job: dict,
+    port: int,
+    worker_id: int = 0,
+    model: str = "sonnet",
+    dry_run: bool = False,
+    observers: list[ApplyObserver] | None = None,
+) -> tuple[str, int]:
     """Spawn a Claude Code session for one job application.
 
     Returns:
@@ -315,6 +433,16 @@ def run_job(job: dict, port: int, worker_id: int = 0,
         job=job,
         tailored_resume=resume_text,
         dry_run=dry_run,
+    )
+
+    app_url = job.get("application_url") or job["url"]
+    _notify_observers(
+        observers,
+        "on_job_prompt",
+        worker_id,
+        job.get("title") or "",
+        app_url,
+        agent_prompt,
     )
 
     # Write per-worker MCP config
@@ -394,6 +522,7 @@ def run_job(job: dict, port: int, worker_id: int = 0,
                 line = line.strip()
                 if not line:
                     continue
+                _notify_observers(observers, "on_raw_ndjson", worker_id, line)
                 try:
                     msg = json.loads(line)
                     msg_type = msg.get("type")
@@ -403,13 +532,16 @@ def run_job(job: dict, port: int, worker_id: int = 0,
                             if bt == "text":
                                 text_parts.append(block["text"])
                                 lf.write(block["text"] + "\n")
+                                _notify_observers(
+                                    observers, "on_assistant_text", worker_id, block["text"]
+                                )
                             elif bt == "tool_use":
+                                raw_name = block.get("name", "")
                                 name = (
-                                    block.get("name", "")
-                                    .replace("mcp__playwright__", "")
+                                    raw_name.replace("mcp__playwright__", "")
                                     .replace("mcp__gmail__", "gmail:")
                                 )
-                                inp = block.get("input", {})
+                                inp = block.get("input", {}) or {}
                                 if "url" in inp:
                                     desc = f"{name} {inp['url'][:60]}"
                                 elif "ref" in inp:
@@ -427,6 +559,36 @@ def run_job(job: dict, port: int, worker_id: int = 0,
                                 update_state(worker_id,
                                              actions=cur_actions + 1,
                                              last_action=desc[:35])
+                                _notify_observers(
+                                    observers, "on_tool_use", worker_id, raw_name, inp
+                                )
+                        ausage = msg.get("message", {}).get("usage")
+                        if isinstance(ausage, dict) and ausage:
+                            _notify_observers(observers, "on_assistant_usage", worker_id, ausage)
+                    elif msg_type == "user":
+                        umsg = msg.get("message") or {}
+                        for block in umsg.get("content") or []:
+                            if not isinstance(block, dict):
+                                continue
+                            bt = block.get("type")
+                            if bt == "tool_result":
+                                tid = str(block.get("tool_use_id") or "")
+                                tres = block.get("content")
+                                is_err = bool(block.get("is_error"))
+                                _notify_observers(
+                                    observers,
+                                    "on_tool_result",
+                                    worker_id,
+                                    tid,
+                                    tres,
+                                    is_err,
+                                )
+                            elif bt == "text":
+                                ut = block.get("text")
+                                if isinstance(ut, str) and ut:
+                                    _notify_observers(
+                                        observers, "on_user_message_text", worker_id, ut
+                                    )
                     elif msg_type == "result":
                         stats = {
                             "input_tokens": msg.get("usage", {}).get("input_tokens", 0),
@@ -437,6 +599,7 @@ def run_job(job: dict, port: int, worker_id: int = 0,
                             "turns": msg.get("num_turns", 0),
                         }
                         text_parts.append(msg.get("result", ""))
+                        _notify_observers(observers, "on_stream_result", worker_id, msg)
                 except json.JSONDecodeError:
                     text_parts.append(line)
                     lf.write(line + "\n")
@@ -545,10 +708,17 @@ def _is_permanent_failure(result: str) -> bool:
 # Worker loop
 # ---------------------------------------------------------------------------
 
-def worker_loop(worker_id: int = 0, limit: int = 1,
-                target_url: str | None = None,
-                min_score: int = 7, headless: bool = False,
-                model: str = "sonnet", dry_run: bool = False) -> tuple[int, int]:
+def worker_loop(
+    worker_id: int = 0,
+    limit: int = 1,
+    target_url: str | None = None,
+    min_score: int = 7,
+    headless: bool = False,
+    model: str = "sonnet",
+    dry_run: bool = False,
+    observers: list[ApplyObserver] | None = None,
+    test_form: bool = False,
+) -> tuple[int, int]:
     """Run jobs sequentially until limit is reached or queue is empty.
 
     Args:
@@ -559,6 +729,9 @@ def worker_loop(worker_id: int = 0, limit: int = 1,
         headless: Run Chrome headless.
         model: Claude model name.
         dry_run: Don't click Submit.
+        test_form: With ``target_url``, skip DB acquire/locks and use master resume only
+            (for debugging form fill on any application URL). Implies dry run: the agent
+            is instructed not to click Submit (same as ``dry_run=True``).
 
     Returns:
         Tuple of (applied_count, failed_count).
@@ -577,8 +750,27 @@ def worker_loop(worker_id: int = 0, limit: int = 1,
         update_state(worker_id, status="idle", job_title="", company="",
                      last_action="waiting for job", actions=0)
 
-        job = acquire_job(target_url=target_url, min_score=min_score,
-                          worker_id=worker_id)
+        if test_form and target_url:
+            try:
+                job = synthetic_test_form_job(target_url)
+            except FileNotFoundError as e:
+                add_event(f"[W{worker_id}] test-form: {e}")
+                update_state(worker_id, status="failed", last_action="test-form: need resume.pdf")
+                failed += 1
+                break
+            update_state(
+                worker_id,
+                status="applying",
+                job_title=job["title"],
+                company="test",
+                score=7,
+                start_time=time.time(),
+                actions=0,
+                last_action="test-form (no DB)",
+            )
+        else:
+            job = acquire_job(target_url=target_url, min_score=min_score,
+                              worker_id=worker_id)
         if not job:
             if not continuous:
                 add_event(f"[W{worker_id}] Queue empty")
@@ -599,31 +791,60 @@ def worker_loop(worker_id: int = 0, limit: int = 1,
         chrome_proc = None
         try:
             add_event(f"[W{worker_id}] Launching Chrome...")
-            chrome_proc = launch_chrome(worker_id, port=port, headless=headless)
+            nav_url = (job.get("application_url") or job.get("url") or "").strip()
+            initial_tab = (
+                nav_url
+                if nav_url.startswith(("http://", "https://"))
+                else None
+            )
+            chrome_proc = launch_chrome(
+                worker_id,
+                port=port,
+                headless=headless,
+                initial_url=initial_tab,
+            )
 
-            result, duration_ms = run_job(job, port=port, worker_id=worker_id,
-                                            model=model, dry_run=dry_run)
+            effective_dry_run = dry_run or test_form
+            if test_form and not dry_run:
+                add_event(f"[W{worker_id}] test_form: forcing dry run (no Submit)")
+
+            result, duration_ms = run_job(
+                job,
+                port=port,
+                worker_id=worker_id,
+                model=model,
+                dry_run=effective_dry_run,
+                observers=observers,
+            )
 
             if result == "skipped":
-                release_lock(job["url"])
+                if not test_form:
+                    release_lock(job["url"])
                 add_event(f"[W{worker_id}] Skipped: {job['title'][:30]}")
                 continue
             elif result == "applied":
-                mark_result(job["url"], "applied", duration_ms=duration_ms)
+                if not test_form:
+                    mark_result(job["url"], "applied", duration_ms=duration_ms)
+                else:
+                    add_event(f"[W{worker_id}] test-form finished: {result}")
                 applied += 1
                 update_state(worker_id, jobs_applied=applied,
                              jobs_done=applied + failed)
             else:
                 reason = result.split(":", 1)[-1] if ":" in result else result
-                mark_result(job["url"], "failed", reason,
-                            permanent=_is_permanent_failure(result),
-                            duration_ms=duration_ms)
+                if not test_form:
+                    mark_result(job["url"], "failed", reason,
+                                permanent=_is_permanent_failure(result),
+                                duration_ms=duration_ms)
+                else:
+                    add_event(f"[W{worker_id}] test-form finished: {result}")
                 failed += 1
                 update_state(worker_id, jobs_failed=failed,
                              jobs_done=applied + failed)
 
         except KeyboardInterrupt:
-            release_lock(job["url"])
+            if not test_form:
+                release_lock(job["url"])
             if _stop_event.is_set():
                 break
             add_event(f"[W{worker_id}] Job skipped (Ctrl+C)")
@@ -631,7 +852,8 @@ def worker_loop(worker_id: int = 0, limit: int = 1,
         except Exception as e:
             logger.exception("Worker %d launcher error", worker_id)
             add_event(f"[W{worker_id}] Launcher error: {str(e)[:40]}")
-            release_lock(job["url"])
+            if not test_form:
+                release_lock(job["url"])
             failed += 1
             update_state(worker_id, jobs_failed=failed)
         finally:
@@ -646,14 +868,85 @@ def worker_loop(worker_id: int = 0, limit: int = 1,
     return applied, failed
 
 
+def run_hub_apply_session(
+    target_url: str,
+    min_score: int = 7,
+    headless: bool = False,
+    model: str = "haiku",
+    dry_run: bool = False,
+    test_form: bool = False,
+) -> tuple[int, int]:
+    """Single apply from hub (observers + broadcast); no Rich Live."""
+    from applypilot.apply.trace_server import broadcast_hub_event, get_hub_apply_observer
+    from applypilot.config import PROFILE_PATH, get_tier, load_env, ensure_dirs
+    from applypilot.database import init_db
+
+    load_env()
+    ensure_dirs()
+    init_db()
+    if get_tier() < 3:
+        broadcast_hub_event(
+            {
+                "kind": "apply_session_end",
+                "error": "Tier 3 required (Claude Code CLI + Chrome + LLM). Run applypilot doctor.",
+                "applied": 0,
+                "failed": 1,
+            }
+        )
+        return 0, 1
+    url = target_url.strip()
+    if not url:
+        broadcast_hub_event({"kind": "apply_session_end", "error": "empty URL", "applied": 0, "failed": 1})
+        return 0, 1
+    if not PROFILE_PATH.exists():
+        broadcast_hub_event({"kind": "apply_session_end", "error": "profile missing", "applied": 0, "failed": 1})
+        return 0, 1
+
+    init_worker(0)
+    obs: list[ApplyObserver] = [get_hub_apply_observer()]
+
+    broadcast_hub_event({"kind": "apply_session_start", "url": url})
+    _stop_event.clear()
+    try:
+        applied, failed = worker_loop(
+            worker_id=0,
+            limit=1,
+            target_url=url,
+            min_score=min_score,
+            headless=headless,
+            model=model,
+            dry_run=dry_run,
+            observers=obs,
+            test_form=test_form,
+        )
+    finally:
+        _stop_event.set()
+    end: dict = {"kind": "apply_session_end", "applied": applied, "failed": failed}
+    if test_form:
+        end["test_form"] = True
+    elif applied == 0 and failed == 0:
+        end["note"] = diagnose_acquire_miss(url, min_score)
+    broadcast_hub_event(end)
+    return applied, failed
+
+
 # ---------------------------------------------------------------------------
 # Main entry point (called from cli.py)
 # ---------------------------------------------------------------------------
 
-def main(limit: int = 1, target_url: str | None = None,
-         min_score: int = 7, headless: bool = False, model: str = "sonnet",
-         dry_run: bool = False, continuous: bool = False,
-         poll_interval: int = 60, workers: int = 1) -> None:
+def main(
+    limit: int = 1,
+    target_url: str | None = None,
+    min_score: int = 7,
+    headless: bool = False,
+    model: str = "sonnet",
+    dry_run: bool = False,
+    continuous: bool = False,
+    poll_interval: int = 60,
+    workers: int = 1,
+    observe: bool = False,
+    test_form: bool = False,
+) -> None:
     """Launch the apply pipeline.
 
     Args:
@@ -666,6 +959,9 @@ def main(limit: int = 1, target_url: str | None = None,
         continuous: Run forever, polling for new jobs.
         poll_interval: Seconds between DB polls when queue is empty.
         workers: Number of parallel workers (default 1).
+        observe: Start localhost trace hub and stream events to the browser.
+        test_form: Skip DB acquire; use ``--url`` with master resume only (form-fill test).
+            Always runs with dry-run prompt semantics (no Submit), even if ``dry_run`` is False.
     """
     global POLL_INTERVAL
     POLL_INTERVAL = poll_interval
@@ -673,6 +969,16 @@ def main(limit: int = 1, target_url: str | None = None,
 
     config.ensure_dirs()
     console = Console()
+
+    observers_list: list[ApplyObserver] | None = None
+    if observe:
+        from applypilot.apply.trace_server import start_hub_background
+
+        port = start_hub_background(open_browser=True)
+        console.print(f"[dim]Trace hub http://127.0.0.1:{port}/[/dim]")
+        from applypilot.apply.trace_server import get_hub_apply_observer
+
+        observers_list = [get_hub_apply_observer()]
 
     if continuous:
         effective_limit = 0
@@ -712,6 +1018,8 @@ def main(limit: int = 1, target_url: str | None = None,
             kill_all_chrome()
             raise KeyboardInterrupt
 
+    if platform.system() != "Windows":
+        signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
     signal.signal(signal.SIGINT, _sigint_handler)
 
     try:
@@ -737,6 +1045,8 @@ def main(limit: int = 1, target_url: str | None = None,
                     headless=headless,
                     model=model,
                     dry_run=dry_run,
+                    observers=observers_list,
+                    test_form=test_form,
                 )
             else:
                 # Multi-worker — distribute limit across workers
@@ -760,6 +1070,8 @@ def main(limit: int = 1, target_url: str | None = None,
                             headless=headless,
                             model=model,
                             dry_run=dry_run,
+                            observers=observers_list,
+                            test_form=test_form,
                         ): i
                         for i in range(workers)
                     }

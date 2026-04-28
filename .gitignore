@@ -1,10 +1,11 @@
-# User data (NEVER commit)
-profile.json
-resume.txt
-resume.pdf
+# Sensitive copies at repo root only — demo test fixtures live under demo/user-data/ (tracked).
+/profile.json
+/resume.txt
+/resume.pdf
 *.env
 .env.*
-!.env.example
+# env.placeholder is the committed API template (not a secret)
+!env.placeholder
 
 # Runtime artifacts
 *.db

@@ -1,12 +1,40 @@
 """ApplyPilot configuration: paths, platform detection, user data."""
 
+import logging
 import os
 import platform
 import shutil
+import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
-# User data directory — all user-specific files live here
-APP_DIR = Path(os.environ.get("APPLYPILOT_DIR", Path.home() / ".applypilot"))
+
+def _resolve_app_dir() -> Path:
+    """Resolve the user data directory before other path constants.
+
+    Loads ``.env`` from the **current working directory** first so
+    ``APPLYPILOT_DIR`` can point at a repo-local folder (e.g. ``demo/user-data``).
+
+    Resolution:
+    1. If ``APPLYPILOT_DIR`` is set (after loading cwd ``.env``): use it; relative paths
+       are resolved from ``Path.cwd()``.
+    2. Else: ``~/.applypilot``.
+    """
+    from dotenv import load_dotenv
+
+    cwd_env = Path.cwd() / ".env"
+    if cwd_env.exists():
+        load_dotenv(cwd_env)
+
+    raw = os.environ.get("APPLYPILOT_DIR", "").strip()
+    if raw:
+        p = Path(raw).expanduser()
+        return p.resolve() if p.is_absolute() else (Path.cwd() / p).resolve()
+    return (Path.home() / ".applypilot").resolve()
+
+
+# User data directory — profile, resume, DB, logs, chrome workers (see README)
+APP_DIR = _resolve_app_dir()
 
 # Core paths
 DB_PATH = APP_DIR / "applypilot.db"
@@ -92,7 +120,7 @@ def ensure_dirs():
 
 
 def load_profile() -> dict:
-    """Load user profile from ~/.applypilot/profile.json."""
+    """Load user profile from ``PROFILE_PATH`` under ``APP_DIR``."""
     import json
     if not PROFILE_PATH.exists():
         raise FileNotFoundError(
@@ -102,7 +130,7 @@ def load_profile() -> dict:
 
 
 def load_search_config() -> dict:
-    """Load search configuration from ~/.applypilot/searches.yaml."""
+    """Load search configuration from ``SEARCH_CONFIG_PATH``."""
     import yaml
     if not SEARCH_CONFIG_PATH.exists():
         # Fall back to package-shipped example
@@ -172,12 +200,77 @@ DEFAULTS = {
 
 
 def load_env():
-    """Load environment variables from ~/.applypilot/.env if it exists."""
+    """Load API keys and overrides.
+
+    Order: ``APP_DIR``/``.env``, then project root ``.env`` (overrides), then default discovery.
+    Project root ``.env`` is the recommended place for keys when developing from a git checkout.
+    """
     from dotenv import load_dotenv
+
     if ENV_PATH.exists():
         load_dotenv(ENV_PATH)
-    # Also try CWD .env as fallback
+    cwd_env = Path.cwd() / ".env"
+    if cwd_env.exists():
+        load_dotenv(cwd_env, override=True)
     load_dotenv()
+
+
+_logger = logging.getLogger(__name__)
+
+
+def _env_value_is_configured(name: str) -> bool:
+    """True if the variable is set to a non-empty, non-template value."""
+    template_substrings = (
+        "your-gemini-api-key-here",
+        "your-openai-key-here",
+        "your-capsolver-key-here",
+    )
+    v = (os.environ.get(name) or "").strip()
+    if not v:
+        return False
+    lv = v.lower()
+    if any(t in lv for t in template_substrings):
+        return False
+    return True
+
+
+def llm_credentials_configured() -> bool:
+    """Whether a real LLM URL/key appears to be configured (not blank / not template text)."""
+    load_env()
+    return (
+        _env_value_is_configured("GEMINI_API_KEY")
+        or _env_value_is_configured("OPENAI_API_KEY")
+        or _env_value_is_configured("LLM_URL")
+    )
+
+
+def warn_missing_llm_credentials(*, hub: bool = False) -> None:
+    """When no LLM URL/key is usable: WARNING log, stderr, append ``logs/env_reminder.log``.
+
+    Copy ``env.placeholder`` → ``.env`` and replace placeholders (see README).
+    """
+    load_env()
+    if llm_credentials_configured():
+        return
+
+    ctx = " (hub)" if hub else ""
+    msg = (
+        "No usable LLM credentials in environment. Copy env.placeholder to .env in the project "
+        "root and set GEMINI_API_KEY (or OPENAI_API_KEY / LLM_URL). See README."
+    )
+    _logger.warning("%s%s", msg, ctx)
+    try:
+        sys.stderr.write(f"\n*** ApplyPilot{ctx}: {msg}\n\n")
+    except Exception:
+        pass
+    try:
+        LOG_DIR.mkdir(parents=True, exist_ok=True)
+        log_file = LOG_DIR / "env_reminder.log"
+        ts = datetime.now(timezone.utc).isoformat()
+        with log_file.open("a", encoding="utf-8") as fh:
+            fh.write(f"{ts} {msg}\n")
+    except Exception:
+        _logger.debug("Could not append env_reminder.log", exc_info=True)
 
 
 # ---------------------------------------------------------------------------

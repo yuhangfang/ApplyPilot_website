@@ -1,0 +1,21 @@
+ALEX DEMO
+alex.demo@example.invalid | +1 555 010 0199 | San Francisco, CA
+
+SUMMARY
+Software engineer focused on backend systems and developer tooling. Demo resume for ApplyPilot testing — all names, companies, and metrics are fictional.
+
+EXPERIENCE
+
+Demo Corp — Software Engineer — 2020–Present
+- Built internal APIs with Python and FastAPI; improved reliability for customer-facing workflows.
+- Collaborated with product and design on iterative delivery.
+
+Example Labs — Junior Engineer — 2017–2020
+- Maintained services and contributed to on-call rotation.
+
+EDUCATION
+Example University — M.S. Computer Science — 2017
+Example University — B.S. Computer Science — 2015
+
+SKILLS
+Python, TypeScript, SQL, Docker, PostgreSQL, Git

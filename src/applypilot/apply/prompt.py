@@ -507,13 +507,35 @@ def build_prompt(job: dict, tailored_resume: str,
     last_name = full_name.split()[-1] if " " in full_name else ""
     display_name = f"{preferred_name} {last_name}".strip()
 
-    # Dry-run: override submit instruction
+    # Dry-run: override submit instruction (no technical browser lock — model must obey)
     if dry_run:
-        submit_instruction = "IMPORTANT: Do NOT click the final Submit/Apply button. Review the form, verify all fields, then output RESULT:APPLIED with a note that this was a dry run."
+        submit_instruction = (
+            "DRY RUN — FORBIDDEN: Do NOT click the final Submit/Apply/Send button. "
+            "Do not complete the application; no real submission. Review the form, verify fields, "
+            "then output RESULT:APPLIED with a note that this was a dry run only."
+        )
+        step_after_fill = (
+            "11. DRY RUN only: Take browser_snapshot to confirm the form state. "
+            "Do NOT click Submit/Apply or any control that would finalize or send the application. "
+            "Skip any 'confirm submission' or post-submit steps."
+        )
+        lead_paragraph = (
+            "You are an autonomous job application agent in **DRY RUN** mode: fill forms and verify data, "
+            "but **final submission is forbidden** — never click the ultimate Submit/Apply."
+        )
     else:
         submit_instruction = "BEFORE clicking Submit/Apply, take a snapshot and review EVERY field on the page. Verify all data matches the APPLICANT PROFILE and TAILORED RESUME -- name, email, phone, location, work auth, resume uploaded, cover letter if applicable. If anything is wrong or missing, fix it FIRST. Only click Submit after confirming everything is correct."
+        step_after_fill = (
+            "11. After submit: browser_snapshot. Run CAPTCHA DETECT -- submit buttons often trigger invisible CAPTCHAs. "
+            "If found, solve it (the form may auto-submit once the token clears, or you may need to click Submit again). "
+            "Then check for new tabs (browser_tabs action: \"list\"). Switch to newest, close old. Snapshot to confirm submission. Look for \"thank you\" or \"application received\"."
+        )
+        lead_paragraph = (
+            "You are an autonomous job application agent. Your ONE mission: get this candidate an interview. "
+            "You have all the information and tools. Think strategically. Act decisively. Submit the application."
+        )
 
-    prompt = f"""You are an autonomous job application agent. Your ONE mission: get this candidate an interview. You have all the information and tools. Think strategically. Act decisively. Submit the application.
+    prompt = f"""{lead_paragraph}
 
 == JOB ==
 URL: {job.get('application_url') or job['url']}
@@ -535,13 +557,14 @@ Cover Letter PDF (upload if asked): {cl_upload_path or "N/A"}
 {profile_summary}
 
 == YOUR MISSION ==
-Submit a complete, accurate application. Use the profile and resume as source data -- adapt to fit each form's format.
+{"Fill the form completely (dry run — **no final Submit**). Use the profile and resume as source data." if dry_run else "Submit a complete, accurate application. Use the profile and resume as source data -- adapt to fit each form's format."}
 
-If something unexpected happens and these instructions don't cover it, figure it out yourself. You are autonomous. Navigate pages, read content, try buttons, explore the site. The goal is always the same: submit the application. Do whatever it takes to reach that goal.
+If something unexpected happens and these instructions don't cover it, figure it out yourself. You are autonomous. Navigate pages, read content, try buttons, explore the site. {"In dry run, the goal is a filled, verified form **without** submitting." if dry_run else "The goal is always the same: submit the application. Do whatever it takes to reach that goal."}
 
 {hard_rules}
 
 == NEVER DO THESE (immediate RESULT:FAILED if encountered) ==
+{"- NEVER click the final Submit/Apply (or equivalent) that sends the application — this run is DRY RUN only." if dry_run else ""}
 - NEVER grant camera, microphone, screen sharing, or location permissions. If a site requests them -> RESULT:FAILED:unsafe_permissions
 - NEVER do video/audio verification, selfie capture, ID photo upload, or biometric anything -> RESULT:FAILED:unsafe_verification
 - NEVER set up a freelancing profile (Mercor, Toptal, Upwork, Fiverr, Turing, etc.). These are contractor marketplaces, not job applications -> RESULT:FAILED:not_a_job_application
@@ -581,7 +604,7 @@ If something unexpected happens and these instructions don't cover it, figure it
    - Compare every other field to the APPLICANT PROFILE. Fix mismatches. Fill empty fields.
 9. Answer screening questions using the rules above.
 10. {submit_instruction}
-11. After submit: browser_snapshot. Run CAPTCHA DETECT -- submit buttons often trigger invisible CAPTCHAs. If found, solve it (the form will auto-submit once the token clears, or you may need to click Submit again). Then check for new tabs (browser_tabs action: "list"). Switch to newest, close old. Snapshot to confirm submission. Look for "thank you" or "application received".
+{step_after_fill}
 12. Output your result.
 
 == RESULT CODES (output EXACTLY one) ==

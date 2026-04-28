@@ -313,10 +313,10 @@ def generate_dashboard(output_path: str | None = None) -> str:
 
 <div class="filters">
   <span class="filter-label">Score:</span>
-  <button class="filter-btn active" onclick="filterScore(0)">All 5+</button>
-  <button class="filter-btn" onclick="filterScore(7)">7+ Strong</button>
-  <button class="filter-btn" onclick="filterScore(8)">8+ Excellent</button>
-  <button class="filter-btn" onclick="filterScore(9)">9+ Perfect</button>
+  <button class="filter-btn active" onclick="filterScore(0, this)">All 5+</button>
+  <button class="filter-btn" onclick="filterScore(7, this)">7+ Strong</button>
+  <button class="filter-btn" onclick="filterScore(8, this)">8+ Excellent</button>
+  <button class="filter-btn" onclick="filterScore(9, this)">9+ Perfect</button>
   <span class="filter-label" style="margin-left:1rem">Search:</span>
   <input type="text" class="search-input" placeholder="Filter by title, site..." oninput="filterText(this.value)">
 </div>
@@ -340,10 +340,10 @@ def generate_dashboard(output_path: str | None = None) -> str:
 let minScore = 0;
 let searchText = '';
 
-function filterScore(min) {{
+function filterScore(min, el) {{
   minScore = min;
   document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-  event.target.classList.add('active');
+  if (el) el.classList.add('active');
   applyFilters();
 }}
 
@@ -393,6 +393,21 @@ applyFilters();
     abs_path = str(out.resolve())
     console.print(f"[green]Dashboard written to {abs_path}[/green]")
     return abs_path
+
+
+def generate_dashboard_html() -> str:
+    """Build dashboard HTML in a temp file and return contents (for localhost hub iframe)."""
+    import tempfile
+
+    fd, tmp = tempfile.mkstemp(suffix=".html", dir=str(APP_DIR))
+    try:
+        import os
+
+        os.close(fd)
+        path = generate_dashboard(tmp)
+        return Path(path).read_text(encoding="utf-8")
+    finally:
+        Path(tmp).unlink(missing_ok=True)
 
 
 def open_dashboard(output_path: str | None = None) -> None:

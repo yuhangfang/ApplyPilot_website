@@ -1,7 +1,7 @@
 [project]
 name = "applypilot"
 version = "0.3.0"
-description = "AI-powered end-to-end job application pipeline"
+description = "Job pipeline with localhost web hub for apply tracing and settings (fork)"
 readme = "README.md"
 license = "AGPL-3.0-only"
 requires-python = ">=3.11"

@@ -1,6 +1,7 @@
 """ApplyPilot first-time setup wizard.
 
-Interactive flow that creates ~/.applypilot/ with:
+Interactive flow that creates the user data directory (default ``~/.applypilot/``, or
+``APPLYPILOT_DIR`` from ``.env``) with:
   - resume.txt (and optionally resume.pdf)
   - profile.json
   - searches.yaml

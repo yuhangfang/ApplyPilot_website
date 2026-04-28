@@ -1,0 +1,55 @@
+{
+  "personal": {
+    "full_name": "Alex Demo",
+    "preferred_name": "Alex",
+    "email": "alex.demo@example.invalid",
+    "phone": "+1 555 010 0199",
+    "city": "San Francisco",
+    "province_state": "California",
+    "country": "United States",
+    "postal_code": "94105",
+    "address": "123 Example Street",
+    "linkedin_url": "https://www.linkedin.com/in/example-demo",
+    "github_url": "https://github.com/example-demo",
+    "portfolio_url": "",
+    "website_url": "",
+    "password": "DemoPassword-DoNotUse"
+  },
+  "work_authorization": {
+    "legally_authorized_to_work": true,
+    "require_sponsorship": false,
+    "work_permit_type": "Citizen"
+  },
+  "compensation": {
+    "salary_expectation": "150000",
+    "salary_currency": "USD",
+    "salary_range_min": "140000",
+    "salary_range_max": "170000"
+  },
+  "experience": {
+    "years_of_experience_total": "8",
+    "education_level": "Master's",
+    "current_title": "Software Engineer",
+    "target_role": "Senior Software Engineer"
+  },
+  "skills_boundary": {
+    "programming_languages": ["Python", "TypeScript"],
+    "frameworks": ["FastAPI", "React"],
+    "tools": ["Docker", "PostgreSQL", "Git"]
+  },
+  "resume_facts": {
+    "preserved_companies": ["Demo Corp"],
+    "preserved_projects": ["Observability platform"],
+    "preserved_school": "Example University",
+    "real_metrics": ["Reduced p99 latency by 40%"]
+  },
+  "eeo_voluntary": {
+    "gender": "Decline to self-identify",
+    "race_ethnicity": "Decline to self-identify",
+    "veteran_status": "Decline to self-identify",
+    "disability_status": "Decline to self-identify"
+  },
+  "availability": {
+    "earliest_start_date": "Immediately"
+  }
+}

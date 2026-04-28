@@ -1,0 +1,33 @@
+# Demo job-search config — illustrative only; replace with applypilot init for real runs.
+queries:
+  - query: "software engineer"
+    tier: 1
+  - query: "backend engineer"
+    tier: 2
+
+locations:
+  - location: "Remote"
+    remote: true
+  - location: "San Francisco, CA"
+    remote: false
+
+location:
+  accept_patterns:
+    - "Remote"
+    - "California"
+    - "United States"
+  reject_patterns:
+    - "India only"
+
+country: "USA"
+
+boards:
+  - indeed
+
+defaults:
+  results_per_site: 50
+  hours_old: 168
+
+exclude_titles:
+  - "intern"
+  - "internship"

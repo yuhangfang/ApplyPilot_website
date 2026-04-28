@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ApplyPilot Hub</title>
+<style>
+  :root { --bg:#0f172a; --card:#1e293b; --text:#e2e8f0; --muted:#94a3b8; --accent:#60a5fa; --ok:#10b981; --warn:#f59e0b; --err:#ef4444; }
+  * { box-sizing: border-box; }
+  body { font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 0.75rem; font-size: 14px; }
+  h1 { font-size: 1.25rem; margin: 0 0 0.5rem; }
+  .tabs { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 10px; border-bottom: 1px solid #334155; padding-bottom: 8px; }
+  .tabs button { background: var(--card); border: 1px solid #334155; color: var(--muted); padding: 6px 12px; border-radius: 6px; cursor: pointer; }
+  .tabs button.active { background: var(--accent); color: #0f172a; border-color: var(--accent); font-weight: 600; }
+  .panel { display: none; }
+  .panel.active { display: block; }
+  .subtabs { display: flex; gap: 4px; margin: 8px 0; flex-wrap: wrap; }
+  .subtabs button { font-size: 12px; padding: 4px 10px; }
+  .card { background: var(--card); border-radius: 8px; padding: 12px; margin-bottom: 10px; border: 1px solid #334155; }
+  pre, textarea { background: #0f172a; border: 1px solid #334155; border-radius: 6px; padding: 8px; overflow: auto; font-size: 12px; width: 100%; max-width: 100%; color: var(--text); }
+  textarea { min-height: 200px; font-family: ui-monospace, monospace; }
+  .row { margin: 6px 0; }
+  label { color: var(--muted); display: block; font-size: 12px; margin-bottom: 2px; }
+  input[type=text], input[type=number], select { width: 100%; max-width: 480px; padding: 6px 8px; border-radius: 6px; border: 1px solid #334155; background: #334155; color: var(--text); }
+  button.primary { background: var(--accent); color: #0f172a; border: none; padding: 8px 16px; border-radius: 6px; font-weight: 600; cursor: pointer; }
+  button.primary:disabled { opacity: 0.5; cursor: not-allowed; }
+  .status-ok { color: var(--ok); }
+  .status-warn { color: var(--warn); }
+  .status-fail { color: var(--err); }
+  .status-info { color: var(--muted); }
+  iframe { width: 100%; height: 70vh; border: 1px solid #334155; border-radius: 8px; background: #fff; }
+  .hint { color: var(--muted); font-size: 12px; }
+  .trace-wrap { padding-top: 4px; }
+  .apply-chrome-hint { margin-bottom: 12px; padding: 10px; border: 1px solid #334155; border-radius: 8px; background: #0c1222; }
+  .apply-chrome-hint strong { color: var(--text); }
+  .trace-pane { display: none; max-height: 460px; overflow-y: auto; padding: 4px 0 12px; }
+  .trace-pane.active { display: block; }
+  .msg { margin: 10px 0; padding: 10px 12px; background: #0f172a; border-radius: 8px; border: 1px solid #334155; border-left-width: 4px; }
+  .msg-user { border-left-color: #a78bfa; }
+  .msg-assistant { border-left-color: var(--ok); }
+  .msg-tool { border-left-color: var(--warn); }
+  .msg-tool-result { border-left-color: #34d399; }
+  .msg-tool-result.err { border-left-color: var(--err); }
+  .msg-context { border-left-color: #c084fc; }
+  .msg-usage { border-left-color: #64748b; font-size: 11px; }
+  .msg-system { border-left-color: var(--accent); font-size: 12px; }
+  .msg-browser { border-left-color: #22d3ee; font-size: 12px; }
+  .msg-form { border-left-color: #fb923c; font-size: 12px; }
+  .msg header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; margin-bottom: 8px; font-size: 11px; color: var(--muted); }
+  .msg .role { font-weight: 700; color: var(--text); font-size: 12px; }
+  .msg .body { white-space: pre-wrap; word-break: break-word; font-family: ui-monospace, monospace; font-size: 12px; color: var(--text); }
+  .msg pre.prompt-preview { margin: 0; max-height: 260px; overflow: auto; white-space: pre-wrap; word-break: break-word; }
+  .msg pre.tool-json { margin: 0; padding: 8px; background: #020617; border-radius: 6px; max-height: 340px; overflow: auto; font-size: 11px; }
+  .turn-split { margin: 14px 0 8px; border: 0; border-top: 1px dashed #475569; }
+  .turn-meta { font-size: 11px; color: var(--muted); padding: 0 0 4px; }
+  .form-row-line { font-family: ui-monospace, monospace; font-size: 11px; padding: 4px 0; border-bottom: 1px solid #1e293b; color: var(--text); }
+  .raw-line { font-family: ui-monospace, monospace; font-size: 10px; white-space: pre-wrap; word-break: break-word; padding: 2px 0; color: var(--muted); border-bottom: 1px solid #1e293b; }
+  .apply-compact { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .apply-compact input[type=text] { flex: 1 1 220px; min-width: 0; max-width: 100%; }
+  .apply-compact .primary { flex: 0 0 auto; white-space: nowrap; }
+</style>
+</head>
+<body>
+<h1>ApplyPilot Hub</h1>
+<p class="hint">Local only (127.0.0.1). API keys are never shown in full.</p>
+<div class="tabs" id="primaryTabs">
+  <button type="button" data-panel="home" class="active">Home</button>
+  <button type="button" data-panel="explore">Explore</button>
+  <button type="button" data-panel="jobs">Jobs</button>
+  <button type="button" data-panel="pipeline">Pipeline</button>
+  <button type="button" data-panel="apply">Apply live</button>
+  <button type="button" data-panel="settings">Settings</button>
+</div>
+
+<div id="panel-home" class="panel active">
+  <div id="homeEnvBanner" class="card" style="display:none;border-color:var(--warn);background:#1c1917;color:#fcd34d;"></div>
+  <div class="card" id="homeStats">Loading…</div>
+  <div class="card" id="homeTier"></div>
+</div>
+
+<div id="panel-explore" class="panel">
+  <div class="card" id="exploreBody">Loading…</div>
+</div>
+
+<div id="panel-jobs" class="panel">
+  <p class="hint">Full job dashboard (regenerated from your DB).</p>
+  <iframe id="jobsFrame" title="Jobs"></iframe>
+</div>
+
+<div id="panel-pipeline" class="panel">
+  <div class="card">
+    <label>Stages (comma-separated, or "all")</label>
+    <input type="text" id="plStages" value="all" />
+    <div class="row"><label>Min score</label><input type="number" id="plMinScore" value="7" /></div>
+    <div class="row"><label>Workers</label><input type="number" id="plWorkers" value="1" min="1" /></div>
+    <div class="row"><label><input type="checkbox" id="plStream" /> Stream mode</label></div>
+    <div class="row"><label><input type="checkbox" id="plDry" /> Dry run</label></div>
+    <div class="row"><label>Validation</label>
+      <select id="plVal"><option>normal</option><option>strict</option><option>lenient</option></select>
+    </div>
+    <button type="button" class="primary" id="plRun">Run pipeline</button>
+    <pre id="plStatus" style="margin-top:10px"></pre>
+  </div>
+</div>
+
+<div id="panel-apply" class="panel">
+  <div class="card">
+    <div class="apply-compact">
+      <button type="button" class="primary" id="apStart">Run</button>
+      <input type="text" id="apUrl" placeholder="Application URL (https://…)" autocomplete="off" />
+    </div>
+    <p class="hint" style="margin:8px 0 0;">Test mode: master <code>resume.txt</code> + <code>resume.pdf</code>, no database, dry run (no Submit). Model <code>haiku</code>, visible Chrome. Trace below.</p>
+  </div>
+  <div class="subtabs" id="applySubTabs">
+    <button type="button" data-trace="all" class="active">All</button>
+    <button type="button" data-trace="form">Form</button>
+    <button type="button" data-trace="assistant">Transcript</button>
+    <button type="button" data-trace="tool">Tools</button>
+    <button type="button" data-trace="raw">Raw</button>
+  </div>
+  <div class="card trace-wrap">
+    <div id="chromeApplyHint" class="apply-chrome-hint hint">
+      <strong>Worker Chrome window</strong>
+      <p style="margin:6px 0 0;">ApplyPilot opens a <em>separate</em> Chrome with its own profile and loads your <strong>application URL in the first tab</strong> right away (same browser the agent drives over CDP). On macOS the window is brought forward after startup. The agent may reload the page; field-level progress appears under <b>Transcript</b> / <b>Form</b>.</p>
+      <p id="chromeApplyUrlLine" style="margin-top:8px;font-size:12px;word-break:break-all;color:var(--text);"></p>
+    </div>
+    <div id="tracePaneAll" class="trace-pane active"></div>
+    <div id="tracePaneForm" class="trace-pane"></div>
+    <div id="tracePaneTranscript" class="trace-pane"></div>
+    <div id="tracePaneTools" class="trace-pane"></div>
+    <div id="tracePaneRaw" class="trace-pane"></div>
+  </div>
+</div>
+
+<div id="panel-settings" class="panel">
+  <div class="subtabs" id="setSubTabs">
+    <button type="button" data-set="profile" class="active">Profile</button>
+    <button type="button" data-set="resume">Resume</button>
+    <button type="button" data-set="searches">Searches</button>
+    <button type="button" data-set="env">Environment</button>
+    <button type="button" data-set="doctor">Doctor</button>
+  </div>
+  <div id="set-profile" class="card set-panel">
+    <p>Edit JSON and save.</p>
+    <textarea id="profileJson"></textarea>
+    <button type="button" class="primary" id="saveProfile">Save profile</button>
+    <pre id="profileMsg"></pre>
+  </div>
+  <div id="set-resume" class="card set-panel" style="display:none">
+    <pre id="resumeStatus"></pre>
+    <label>Upload resume .txt</label>
+    <input type="file" id="upTxt" accept=".txt,text/plain" />
+    <label>Upload resume .pdf</label>
+    <input type="file" id="upPdf" accept=".pdf,application/pdf" />
+    <button type="button" class="primary" id="upBtn">Upload selected</button>
+    <pre id="upMsg"></pre>
+  </div>
+  <div id="set-searches" class="card set-panel" style="display:none">
+    <textarea id="searchesYaml"></textarea>
+    <button type="button" class="primary" id="saveSearches">Save searches.yaml</button>
+    <pre id="searchesMsg"></pre>
+  </div>
+  <div id="set-env" class="card set-panel" style="display:none"><pre id="envOut"></pre></div>
+  <div id="set-doctor" class="card set-panel" style="display:none"><pre id="doctorOut"></pre></div>
+</div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+let traceFilter = 'all';
+let es = null;
+let turnIndex = 0;
+const streaming = { all: null, transcript: null };
+const TRACE_MAX_CHARS = 450000;
+
+function syncTraceVisibility() {
+  const map = { all: 'tracePaneAll', form: 'tracePaneForm', assistant: 'tracePaneTranscript', tool: 'tracePaneTools', raw: 'tracePaneRaw' };
+  const activeId = map[traceFilter] || 'tracePaneAll';
+  document.querySelectorAll('.trace-pane').forEach((p) => {
+    p.classList.toggle('active', p.id === activeId);
+  });
+}
+
+function trimPaneOverflow(el) {
+  if (!el) return;
+  while (el.textContent.length > TRACE_MAX_CHARS && el.firstChild) {
+    el.removeChild(el.firstChild);
+  }
+}
+
+function workerTag(d) {
+  return d.worker_id != null ? ' · worker ' + d.worker_id : '';
+}
+
+function flushAssistantKey(key) {
+  const body = streaming[key];
+  if (body) {
+    const art = body.closest('article');
+    if (art) art.classList.remove('streaming');
+    streaming[key] = null;
+  }
+}
+
+function flushAssistant() {
+  flushAssistantKey('all');
+  flushAssistantKey('transcript');
+}
+
+function clearTracePanes() {
+  ['tracePaneAll', 'tracePaneForm', 'tracePaneTranscript', 'tracePaneTools', 'tracePaneRaw'].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = '';
+  });
+  streaming.all = null;
+  streaming.transcript = null;
+  turnIndex = 0;
+}
+
+function appendSystem(pane, roleLabel, bodyText) {
+  if (!pane) return;
+  const art = document.createElement('article');
+  art.className = 'msg msg-system';
+  const h = document.createElement('header');
+  const role = document.createElement('span');
+  role.className = 'role';
+  role.textContent = roleLabel;
+  h.appendChild(role);
+  const body = document.createElement('div');
+  body.className = 'body';
+  body.textContent = bodyText;
+  art.appendChild(h);
+  art.appendChild(body);
+  pane.appendChild(art);
+  trimPaneOverflow(pane);
+}
+
+function appendUserCard(pane, d) {
+  if (!pane) return;
+  flushAssistant();
+  const art = document.createElement('article');
+  art.className = 'msg msg-user';
+  const h = document.createElement('header');
+  const role = document.createElement('span');
+  role.className = 'role';
+  role.textContent = 'User';
+  const meta = document.createElement('span');
+  meta.textContent = (d.job_title || 'Instruction') + workerTag(d);
+  h.appendChild(role);
+  h.appendChild(meta);
+  art.appendChild(h);
+  if (d.job_url) {
+    const u = document.createElement('div');
+    u.className = 'hint';
+    u.style.fontSize = '11px';
+    u.style.marginBottom = '6px';
+    u.textContent = d.job_url;
+    art.appendChild(u);
+  }
+  const pre = document.createElement('pre');
+  pre.className = 'prompt-preview';
+  pre.textContent = d.prompt_preview || '';
+  art.appendChild(pre);
+  pane.appendChild(art);
+  trimPaneOverflow(pane);
+}
+
+function appendAssistantChunk(d) {
+  const text = d.text || '';
+  const w = workerTag(d);
+  [['all', '#tracePaneAll'], ['transcript', '#tracePaneTranscript']].forEach(([key, sel]) => {
+    const pane = $(sel);
+    let body = streaming[key];
+    if (!body) {
+      const art = document.createElement('article');
+      art.className = 'msg msg-assistant streaming';
+      const h = document.createElement('header');
+      const role = document.createElement('span');
+      role.className = 'role';
+      role.textContent = 'Assistant';
+      h.appendChild(role);
+      if (w) {
+        const sp = document.createElement('span');
+        sp.textContent = w.trim();
+        h.appendChild(sp);
+      }
+      body = document.createElement('div');
+      body.className = 'body';
+      art.appendChild(h);
+      art.appendChild(body);
+      pane.appendChild(art);
+      streaming[key] = body;
+    }
+    body.appendChild(document.createTextNode(text));
+    trimPaneOverflow(pane);
+  });
+}
+
+function appendToolCard(pane, d) {
+  if (!pane) return;
+  const art = document.createElement('article');
+  art.className = 'msg msg-tool';
+  const h = document.createElement('header');
+  const role = document.createElement('span');
+  role.className = 'role';
+  role.textContent = 'Tool';
+  const name = document.createElement('span');
+  name.textContent = (d.tool_name || '?') + workerTag(d);
+  h.appendChild(role);
+  h.appendChild(name);
+  art.appendChild(h);
+  const pre = document.createElement('pre');
+  pre.className = 'tool-json';
+  try {
+    pre.textContent = JSON.stringify(d.tool_input || {}, null, 2);
+  } catch (e) {
+    pre.textContent = String(d.tool_input);
+  }
+  art.appendChild(pre);
+  pane.appendChild(art);
+  trimPaneOverflow(pane);
+}
+
+function appendFormRowsCard(pane, d) {
+  if (!pane) return;
+  const art = document.createElement('article');
+  art.className = 'msg msg-form';
+  const h = document.createElement('header');
+  const role = document.createElement('span');
+  role.className = 'role';
+  role.textContent = 'Form';
+  h.appendChild(role);
+  art.appendChild(h);
+  (d.rows || []).forEach((r) => {
+    const row = document.createElement('div');
+    row.className = 'form-row-line';
+    try {
+      row.textContent = JSON.stringify(r);
+    } catch (e) {
+      row.textContent = String(r);
+    }
+    art.appendChild(row);
+  });
+  pane.appendChild(art);
+  trimPaneOverflow(pane);
+}
+
+function appendTurnBoundary(d) {
+  flushAssistant();
+  turnIndex += 1;
+  const summary = 'Turn ' + turnIndex + ' complete' + workerTag(d) + ' — ' + JSON.stringify(d.usage || {});
+  ['#tracePaneAll', '#tracePaneTranscript'].forEach((sel) => {
+    const pane = $(sel);
+    const hr = document.createElement('hr');
+    hr.className = 'turn-split';
+    pane.appendChild(hr);
+    const div = document.createElement('div');
+    div.className = 'turn-meta';
+    div.textContent = summary;
+    pane.appendChild(div);
+    trimPaneOverflow(pane);
+  });
+}
+
+function appendRawLine(pane, line, workerId) {
+  if (!pane) return;
+  const div = document.createElement('div');
+  div.className = 'raw-line';
+  div.textContent = (workerId != null ? '[w' + workerId + '] ' : '') + line;
+  pane.appendChild(div);
+  trimPaneOverflow(pane);
+}
+
+function appendToolResultCard(pane, d) {
+  if (!pane) return;
+  const art = document.createElement('article');
+  art.className = 'msg msg-tool-result' + (d.is_error ? ' err' : '');
+  const h = document.createElement('header');
+  const role = document.createElement('span');
+  role.className = 'role';
+  role.textContent = d.is_error ? 'Tool result (error)' : 'Tool result → model';
+  const id = document.createElement('span');
+  id.className = 'hint';
+  id.style.fontSize = '11px';
+  id.textContent = ('tool_use_id: ' + (d.tool_use_id || '?')) + workerTag(d);
+  h.appendChild(role);
+  h.appendChild(id);
+  art.appendChild(h);
+  const cap = document.createElement('div');
+  cap.className = 'hint';
+  cap.style.fontSize = '10px';
+  cap.style.marginBottom = '6px';
+  cap.textContent = 'This payload is appended to the conversation as user context before the next assistant reply.';
+  art.appendChild(cap);
+  const pre = document.createElement('pre');
+  pre.className = 'tool-json';
+  pre.textContent = (d.content_preview || '') + (d.truncated ? '\n\n… truncated for display' : '');
+  art.appendChild(pre);
+  pane.appendChild(art);
+  trimPaneOverflow(pane);
+}
+
+function appendUserContextCard(pane, d) {
+  if (!pane) return;
+  const art = document.createElement('article');
+  art.className = 'msg msg-context';
+  const h = document.createElement('header');
+  const role = document.createElement('span');
+  role.className = 'role';
+  role.textContent = 'User (context)';
+  const meta = document.createElement('span');
+  meta.textContent = 'stream user message' + workerTag(d);
+  h.appendChild(role);
+  h.appendChild(meta);
+  art.appendChild(h);
+  const body = document.createElement('div');
+  body.className = 'body';
+  body.textContent = d.text || '';
+  art.appendChild(body);
+  pane.appendChild(art);
+  trimPaneOverflow(pane);
+}
+
+function appendAssistantUsageCard(pane, d) {
+  if (!pane) return;
+  const art = document.createElement('article');
+  art.className = 'msg msg-usage';
+  const h = document.createElement('header');
+  const role = document.createElement('span');
+  role.className = 'role';
+  role.textContent = 'Usage';
+  const meta = document.createElement('span');
+  meta.textContent = 'with last assistant message' + workerTag(d);
+  h.appendChild(role);
+  h.appendChild(meta);
+  art.appendChild(h);
+  const pre = document.createElement('pre');
+  pre.className = 'tool-json';
+  try {
+    pre.textContent = JSON.stringify(d.usage || {}, null, 2);
+  } catch (e) {
+    pre.textContent = String(d.usage);
+  }
+  art.appendChild(pre);
+  pane.appendChild(art);
+  trimPaneOverflow(pane);
+}
+
+function appendBrowserNav(d) {
+  const url = d.url || '';
+  const line = 'Opened in browser' + workerTag(d) + ': ' + url;
+  ['#tracePaneAll', '#tracePaneTranscript'].forEach((sel) => {
+    const pane = $(sel);
+    const art = document.createElement('article');
+    art.className = 'msg msg-browser';
+    const h = document.createElement('header');
+    const role = document.createElement('span');
+    role.className = 'role';
+    role.textContent = 'Browser';
+    h.appendChild(role);
+    art.appendChild(h);
+    const body = document.createElement('div');
+    body.className = 'body';
+    body.textContent = url;
+    art.appendChild(body);
+    pane.appendChild(art);
+    trimPaneOverflow(pane);
+  });
+  const hint = $('#chromeApplyUrlLine');
+  if (hint) {
+    const prev = hint.textContent;
+    hint.textContent = (prev ? prev + '\n' : '') + 'Navigated: ' + url;
+  }
+}
+
+function appendHubEvent(d) {
+  const k = d.kind;
+  const all = $('#tracePaneAll');
+  const form = $('#tracePaneForm');
+  const transcript = $('#tracePaneTranscript');
+  const tools = $('#tracePaneTools');
+  const raw = $('#tracePaneRaw');
+
+  if (k === 'job_prompt') {
+    appendUserCard(all, d);
+    appendUserCard(transcript, d);
+    return;
+  }
+  if (k === 'assistant_text') {
+    appendAssistantChunk(d);
+    return;
+  }
+  if (k === 'tool_use') {
+    flushAssistant();
+    appendToolCard(all, d);
+    appendToolCard(transcript, d);
+    appendToolCard(form, d);
+    appendToolCard(tools, d);
+    return;
+  }
+  if (k === 'tool_result') {
+    appendToolResultCard(all, d);
+    appendToolResultCard(transcript, d);
+    appendToolResultCard(tools, d);
+    return;
+  }
+  if (k === 'user_message_text') {
+    appendUserContextCard(all, d);
+    appendUserContextCard(transcript, d);
+    return;
+  }
+  if (k === 'assistant_usage') {
+    appendAssistantUsageCard(all, d);
+    appendAssistantUsageCard(transcript, d);
+    return;
+  }
+  if (k === 'form_rows') {
+    appendFormRowsCard(all, d);
+    appendFormRowsCard(form, d);
+    return;
+  }
+  if (k === 'raw') {
+    appendRawLine(raw, d.line || '', d.worker_id);
+    appendRawLine(all, '[raw] ' + (d.line || '').slice(0, 2000), d.worker_id);
+    trimPaneOverflow(all);
+    return;
+  }
+  if (k === 'stream_result') {
+    appendTurnBoundary(d);
+    return;
+  }
+  if (k === 'apply_session_start') {
+    clearTracePanes();
+    const u = d.url || '';
+    const hint = $('#chromeApplyUrlLine');
+    if (hint) hint.textContent = u ? 'Target URL: ' + u : '';
+    appendSystem(all, 'Session', 'Apply session started for ' + u);
+    appendSystem(transcript, 'Session', 'Apply session started for ' + u);
+    return;
+  }
+  if (k === 'apply_session_end') {
+    const msg = 'Apply session ended — ' + JSON.stringify({ applied: d.applied, failed: d.failed, error: d.error });
+    appendSystem(all, 'Session', msg);
+    appendSystem(transcript, 'Session', msg);
+    return;
+  }
+  if (k === 'browser_navigate') {
+    appendBrowserNav(d);
+    return;
+  }
+  if (k === 'pipeline') {
+    appendSystem(all, 'Pipeline', JSON.stringify(d));
+    return;
+  }
+  appendSystem(all, 'Event', JSON.stringify(d));
+}
+
+function showPanel(id) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('#primaryTabs button').forEach(b => b.classList.remove('active'));
+  $('#panel-' + id).classList.add('active');
+  document.querySelector(`#primaryTabs button[data-panel="${id}"]`).classList.add('active');
+  if (id === 'jobs' && !$('#jobsFrame').getAttribute('src')) $('#jobsFrame').src = '/api/dashboard-html';
+  if (id === 'explore') loadExplore();
+}
+
+document.querySelectorAll('#primaryTabs button').forEach(b => {
+  b.addEventListener('click', () => showPanel(b.dataset.panel));
+});
+
+document.querySelectorAll('#applySubTabs button').forEach(b => {
+  b.addEventListener('click', () => {
+    document.querySelectorAll('#applySubTabs button').forEach(x => x.classList.remove('active'));
+    b.classList.add('active');
+    traceFilter = b.dataset.trace;
+    syncTraceVisibility();
+  });
+});
+
+document.querySelectorAll('#setSubTabs button').forEach(b => {
+  b.addEventListener('click', () => {
+    document.querySelectorAll('#setSubTabs button').forEach(x => x.classList.remove('active'));
+    b.classList.add('active');
+    document.querySelectorAll('.set-panel').forEach(p => p.style.display = 'none');
+    const k = b.dataset.set;
+    if (k === 'profile') $('#set-profile').style.display = 'block';
+    if (k === 'resume') { $('#set-resume').style.display = 'block'; loadResume(); }
+    if (k === 'searches') { $('#set-searches').style.display = 'block'; loadSearches(); }
+    if (k === 'env') { $('#set-env').style.display = 'block'; loadEnv(); }
+    if (k === 'doctor') { $('#set-doctor').style.display = 'block'; loadDoctor(); }
+  });
+});
+
+function connectSSE() {
+  if (es) { es.close(); es = null; }
+  es = new EventSource('/events');
+  es.onmessage = (ev) => {
+    let d;
+    try { d = JSON.parse(ev.data); } catch (e) { return; }
+    appendHubEvent(d);
+  };
+  es.onerror = () => { /* keepalive may reconnect */ };
+}
+connectSSE();
+syncTraceVisibility();
+
+async function loadHome() {
+  try {
+    const envr = await fetch('/api/env-status').then((r) => r.json());
+    const hasLlm =
+      envr.GEMINI_API_KEY || envr.OPENAI_API_KEY || envr.LLM_URL;
+    const llmOk =
+      envr.llm_configured !== undefined && envr.llm_configured !== null
+        ? envr.llm_configured
+        : hasLlm;
+    const banner = $('#homeEnvBanner');
+    if (banner) {
+      if (!llmOk) {
+        banner.style.display = 'block';
+        banner.innerHTML =
+          '<strong>Configure API keys</strong> — Copy <code>env.placeholder</code> to <code>.env</code> ' +
+          'in the project root and set real keys (see README). Check <b>Settings → Environment</b>. ' +
+          'Warnings are also printed in the terminal and appended to <code>logs/env_reminder.log</code> under your data dir.';
+      } else {
+        banner.style.display = 'none';
+      }
+    }
+  } catch (e) {}
+  const r = await fetch('/api/stats');
+  const s = await r.json();
+  let h = '<table style="width:100%;border-collapse:collapse">';
+  for (const [k,v] of Object.entries(s)) {
+    if (k === 'by_site' || k === 'score_distribution') continue;
+    h += '<tr><td style="padding:4px;color:#94a3b8">' + k + '</td><td><b>' + v + '</b></td></tr>';
+  }
+  h += '</table>';
+  if (s.by_site && s.by_site.length) {
+    h += '<p style="color:#94a3b8">By site</p><ul>';
+    s.by_site.slice(0,15).forEach(([site,c]) => { h += '<li>' + (site||'?') + ': ' + c + '</li>'; });
+    h += '</ul>';
+  }
+  $('#homeStats').innerHTML = h;
+  const t = await fetch('/api/doctor').then(r=>r.json());
+  $('#homeTier').innerHTML = '<b>Tier ' + t.tier.tier + '</b> — ' + t.tier.label;
+}
+
+async function loadExplore() {
+  const r = await fetch('/api/stats');
+  const s = await r.json();
+  let h = '<h3>Score distribution</h3><ul>';
+  (s.score_distribution||[]).forEach(([sc, c]) => { h += '<li>Score ' + sc + ': ' + c + '</li>'; });
+  h += '</ul>';
+  $('#exploreBody').innerHTML = h || 'No data';
+}
+
+async function loadProfile() {
+  const r = await fetch('/api/profile');
+  const j = await r.json();
+  $('#profileJson').value = JSON.stringify(j, null, 2);
+}
+$('#saveProfile').onclick = async () => {
+  $('#profileMsg').textContent = '';
+  try {
+    const body = JSON.parse($('#profileJson').value);
+    const r = await fetch('/api/profile', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    const t = await r.text();
+    $('#profileMsg').textContent = r.ok ? 'Saved.' : t;
+  } catch (e) { $('#profileMsg').textContent = String(e); }
+};
+
+async function loadSearches() {
+  const r = await fetch('/api/searches');
+  $('#searchesYaml').value = await r.text();
+}
+$('#saveSearches').onclick = async () => {
+  const r = await fetch('/api/searches', { method:'POST', headers:{'Content-Type':'text/plain; charset=utf-8'}, body: $('#searchesYaml').value });
+  $('#searchesMsg').textContent = await r.text();
+};
+
+async function loadEnv() {
+  const r = await fetch('/api/env-status');
+  $('#envOut').textContent = JSON.stringify(await r.json(), null, 2);
+}
+
+async function loadDoctor() {
+  const r = await fetch('/api/doctor');
+  const d = await r.json();
+  $('#doctorOut').textContent = (d.checks||[]).map(c => c.label + ' [' + c.status + '] ' + c.note).join('\n');
+}
+
+async function loadResume() {
+  const r = await fetch('/api/resume-status');
+  $('#resumeStatus').textContent = JSON.stringify(await r.json(), null, 2);
+}
+$('#upBtn').onclick = async () => {
+  $('#upMsg').textContent = '';
+  const ft = $('#upTxt').files[0];
+  const fp = $('#upPdf').files[0];
+  if (ft) {
+    const buf = await ft.arrayBuffer();
+    const r = await fetch('/api/resume?kind=txt', { method:'POST', body: buf, headers:{'Content-Type':'application/octet-stream'}});
+    $('#upMsg').textContent += await r.text() + '\n';
+  }
+  if (fp) {
+    const buf = await fp.arrayBuffer();
+    const r = await fetch('/api/resume?kind=pdf', { method:'POST', body: buf, headers:{'Content-Type':'application/octet-stream'}});
+    $('#upMsg').textContent += await r.text() + '\n';
+  }
+};
+
+$('#plRun').onclick = async () => {
+  const stages = $('#plStages').value.trim().split(/\s*,\s*/).filter(Boolean);
+  const body = {
+    stages: stages.length ? stages : ['all'],
+    min_score: parseInt($('#plMinScore').value, 10) || 7,
+    workers: parseInt($('#plWorkers').value, 10) || 1,
+    stream: $('#plStream').checked,
+    dry_run: $('#plDry').checked,
+    validation: $('#plVal').value,
+  };
+  const r = await fetch('/api/pipeline/run', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+  $('#plStatus').textContent = await r.text();
+};
+
+$('#apStart').onclick = async () => {
+  const url = $('#apUrl').value.trim();
+  if (!url) {
+    appendSystem($('#tracePaneAll'), 'Request', 'Paste an application URL first.');
+    syncTraceVisibility();
+    return;
+  }
+  const body = {
+    url,
+    min_score: 7,
+    dry_run: true,
+    headless: false,
+    model: 'haiku',
+    test_form: true,
+  };
+  const r = await fetch('/api/apply/session', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+  const t = await r.text();
+  if (!r.ok) {
+    appendSystem($('#tracePaneAll'), 'Request', 'Start run failed: HTTP ' + r.status + ' ' + t.slice(0, 2000));
+    syncTraceVisibility();
+  }
+};
+
+loadHome();
+loadProfile();
+setInterval(loadHome, 30000);
+</script>
+</body>
+</html>

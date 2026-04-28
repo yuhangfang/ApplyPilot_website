@@ -186,14 +186,20 @@ def _suppress_restore_nag(profile_dir: Path) -> None:
 # Chrome launch / kill
 # ---------------------------------------------------------------------------
 
-def launch_chrome(worker_id: int, port: int | None = None,
-                  headless: bool = False) -> subprocess.Popen:
+def launch_chrome(
+    worker_id: int,
+    port: int | None = None,
+    headless: bool = False,
+    initial_url: str | None = None,
+) -> subprocess.Popen:
     """Launch a Chrome instance with remote debugging for a worker.
 
     Args:
         worker_id: Numeric worker identifier.
         port: CDP port. Defaults to BASE_CDP_PORT + worker_id.
         headless: Run Chrome in headless mode (no visible window).
+        initial_url: If set (http/https), opened as the first tab so the window is not left blank
+            until the agent calls navigate (MCP still attaches to this same browser).
 
     Returns:
         subprocess.Popen handle for the Chrome process.
@@ -218,7 +224,7 @@ def launch_chrome(worker_id: int, port: int | None = None,
         "--profile-directory=Default",
         "--no-first-run",
         "--no-default-browser-check",
-        "--window-size=1024,768",
+        "--window-size=1400,900",
         "--disable-session-crashed-bubble",
         "--disable-features=InfiniteSessionRestore,PasswordManagerOnboarding",
         "--hide-crash-restore-bubble",
@@ -234,6 +240,15 @@ def launch_chrome(worker_id: int, port: int | None = None,
     ]
     if headless:
         cmd.append("--headless=new")
+    else:
+        # Larger window + maximized so the apply window is easy to spot next to the hub.
+        cmd.append("--start-maximized")
+
+    start = (initial_url or "").strip()
+    opened_url = ""
+    if start.startswith(("http://", "https://")):
+        cmd.append(start)
+        opened_url = start
 
     # On Unix, start in a new process group so we can kill the whole tree
     kwargs: dict = dict(stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -247,9 +262,31 @@ def launch_chrome(worker_id: int, port: int | None = None,
 
     # Give Chrome time to start and open the debug port
     time.sleep(3)
-    logger.info("[worker-%d] Chrome started on port %d (pid %d)",
-                worker_id, port, proc.pid)
+    if not headless and platform.system() == "Darwin":
+        _activate_chrome_macos(chrome_exe)
+    tab_note = ""
+    if opened_url:
+        tab_note = " first_tab=" + (
+            opened_url[:100] + "…" if len(opened_url) > 100 else opened_url
+        )
+    logger.info("[worker-%d] Chrome started on port %d (pid %d)%s", worker_id, port, proc.pid, tab_note)
     return proc
+
+
+def _activate_chrome_macos(chrome_exe: str) -> None:
+    """Bring Chrome/Chromium to front on macOS (best-effort)."""
+    try:
+        app = "Google Chrome"
+        if "Chromium" in chrome_exe or "chromium" in chrome_exe.lower():
+            app = "Chromium"
+        subprocess.run(
+            ["osascript", "-e", f'tell application "{app}" to activate'],
+            timeout=5,
+            capture_output=True,
+            check=False,
+        )
+    except Exception:
+        logger.debug("Could not activate Chrome via osascript", exc_info=True)
 
 
 def cleanup_worker(worker_id: int, process: subprocess.Popen | None) -> None:
