@@ -373,8 +373,31 @@ class HubRequestHandler(BaseHTTPRequestHandler):
 
                 request_hub_apply_stop()
                 self._send_json(200, {"ok": True, "message": "stop requested"})
+            elif path == "/api/website-reader/analyze":
+                payload = json.loads(self._read_body(512_000).decode("utf-8"))
+                from applypilot.apply.website_reader import analyze_website
+
+                result = analyze_website(
+                    str(payload.get("url") or "").strip(),
+                    use_dom=bool(payload.get("use_dom", True)),
+                    use_snapshot=bool(payload.get("use_snapshot", True)),
+                )
+                self._send_json(200, result)
+            elif path == "/api/website-reader/refresh-analysis":
+                payload = json.loads(self._read_body(1_000_000).decode("utf-8"))
+                from applypilot.apply.website_reader import refresh_llm_analysis
+
+                result = refresh_llm_analysis(
+                    url=str(payload.get("url") or "").strip(),
+                    title=str(payload.get("title") or ""),
+                    snapshot_text=str(payload.get("snapshot_text") or ""),
+                    dom_fields=payload.get("dom_fields") if isinstance(payload.get("dom_fields"), list) else [],
+                    use_dom=bool(payload.get("use_dom", True)),
+                    use_snapshot=bool(payload.get("use_snapshot", True)),
+                )
+                self._send_json(200, result)
             else:
-                self.send_error(404)
+                self._send_json(404, {"error": "not found", "path": path})
         except ValueError as e:
             self._send_json(400, {"error": str(e)})
         except Exception as e:

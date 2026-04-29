@@ -129,13 +129,196 @@
   .dashboard-whole iframe {
     margin: 0;
   }
+  .reader-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+  }
+  .reader-controls input[type=text] {
+    flex: 1 1 360px;
+    max-width: none;
+  }
+  .reader-controls .secondary {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+  .reader-source-toggles {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 8px;
+    color: var(--muted);
+    font-size: 12px;
+  }
+  .reader-source-toggles label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+    cursor: pointer;
+  }
+  .reader-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  @media (min-width: 1100px) {
+    .reader-grid { grid-template-columns: 1fr 1fr 1fr; }
+  }
+  .reader-pane {
+    min-width: 0;
+  }
+  .reader-pane h3 {
+    margin: 0 0 8px;
+    font-size: 12px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .reader-image-wrap {
+    background: #0f172a;
+    border: 1px solid #334155;
+    border-radius: 8px;
+    padding: 8px;
+    max-height: 70vh;
+    overflow: auto;
+  }
+  #wrScreenshot {
+    width: 100%;
+    height: auto;
+    display: block;
+    border-radius: 4px;
+    background: #020617;
+  }
+  #wrFields.reader-fields-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .reader-field-card {
+    background: #111b30;
+    border: 1px solid #2b3a54;
+    border-radius: 8px;
+    padding: 10px 12px;
+    border-left: 4px solid #475569;
+    font-size: 12px;
+    line-height: 1.45;
+  }
+  .reader-field-card.reader-field-conf-high { border-left-color: var(--ok); }
+  .reader-field-card.reader-field-conf-mid { border-left-color: var(--warn); }
+  .reader-field-card.reader-field-conf-low { border-left-color: #64748b; }
+  .reader-field-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 8px 10px;
+    margin-bottom: 8px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #1e293b;
+  }
+  .reader-field-idx {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--muted);
+    min-width: 1.5rem;
+  }
+  .reader-field-label {
+    font-weight: 600;
+    color: var(--text);
+    flex: 1 1 140px;
+    min-width: 0;
+    word-break: break-word;
+  }
+  .reader-field-type {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: #1e293b;
+    color: #94a3b8;
+    border: 1px solid #334155;
+  }
+  .reader-field-conf {
+    font-size: 11px;
+    font-weight: 600;
+    margin-left: auto;
+  }
+  .reader-field-conf.reader-field-conf-high { color: var(--ok); }
+  .reader-field-conf.reader-field-conf-mid { color: var(--warn); }
+  .reader-field-conf.reader-field-conf-low { color: var(--muted); }
+  .reader-field-block {
+    margin-top: 6px;
+  }
+  .reader-field-block:first-of-type { margin-top: 0; }
+  .reader-field-block-label {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    margin-bottom: 4px;
+  }
+  .reader-field-suggested {
+    font-family: ui-monospace, monospace;
+    font-size: 12px;
+    color: #e0f2fe;
+    background: #0c1222;
+    border: 1px solid #334155;
+    border-radius: 6px;
+    padding: 8px 10px;
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 120px;
+    overflow: auto;
+  }
+  .reader-field-suggested.reader-field-empty {
+    color: var(--muted);
+    font-style: italic;
+  }
+  .reader-field-why {
+    font-size: 11px;
+    color: #cbd5e1;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .reader-field-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .reader-field-option-pill {
+    display: inline-flex;
+    align-items: center;
+    max-width: 100%;
+    padding: 2px 8px;
+    border-radius: 999px;
+    border: 1px solid #334155;
+    background: #0f172a;
+    color: #cbd5e1;
+    font-size: 10px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .reader-timing {
+    margin-top: 8px;
+    padding: 8px 10px;
+    border: 1px dashed #334155;
+    border-radius: 8px;
+    font-size: 12px;
+    color: var(--muted);
+    background: #0b1224;
+  }
 </style>
 </head>
 <body>
 <h1>ApplyPilot Hub</h1>
 <p class="hint">Local only (127.0.0.1). API keys are never shown in full.</p>
 <div class="tabs" id="primaryTabs">
-  <button type="button" data-panel="apply" class="active">Apply live</button>
+  <button type="button" data-panel="website-reader" class="active">Website Reader</button>
+  <button type="button" data-panel="apply">Apply live</button>
   <button type="button" data-panel="profile">Profile</button>
   <button type="button" data-panel="dashboard">Dashboard</button>
   <button type="button" data-panel="explore">Explore</button>
@@ -182,7 +365,40 @@
   </div>
 </div>
 
-<div id="panel-apply" class="panel active">
+<div id="panel-website-reader" class="panel active">
+  <div class="card">
+    <div class="reader-controls">
+      <button type="button" class="primary" id="wrRun">Analyze</button>
+      <button type="button" class="secondary" id="wrRefresh" disabled title="Re-run only LLM field analysis using current snapshot">Refresh LLM</button>
+      <input type="text" id="wrUrl" placeholder="Paste website URL (https://...)" autocomplete="off" />
+    </div>
+    <div class="reader-source-toggles">
+      <label><input type="checkbox" id="wrUseDom" checked /> LLM source: DOM</label>
+      <label><input type="checkbox" id="wrUseSnapshot" checked /> LLM source: Snapshot</label>
+    </div>
+    <p class="hint" style="margin:8px 0 0;">Runs Playwright on the URL, captures an accessibility snapshot + screenshot, then asks the LLM to suggest form fields to fill.</p>
+    <pre id="wrStatus" style="margin-top:8px"></pre>
+    <div id="wrTiming" class="reader-timing">Timing: -</div>
+  </div>
+  <div class="card reader-grid">
+    <section class="reader-pane">
+      <h3>Playwright Snapshot</h3>
+      <pre id="wrSnapshot" style="min-height:420px;max-height:70vh;overflow:auto;"></pre>
+    </section>
+    <section class="reader-pane">
+      <h3>Fields To Fill (LLM)</h3>
+      <div id="wrFields" class="reader-fields-list" style="min-height:420px;max-height:70vh;overflow:auto;"></div>
+    </section>
+    <section class="reader-pane">
+      <h3>Playwright Screenshot</h3>
+      <div class="reader-image-wrap">
+        <img id="wrScreenshot" alt="Website screenshot preview" />
+      </div>
+    </section>
+  </div>
+</div>
+
+<div id="panel-apply" class="panel">
   <div class="card">
     <div class="apply-compact">
       <button type="button" class="primary" id="apStart">Run</button>
@@ -259,6 +475,10 @@ const TRACE_MAX_CHARS = 450000;
 let traceRecordEvents = [];
 let traceRecordTruncated = false;
 const TRACE_RECORD_MAX = 80000;
+/** Website Reader: incremental timing from SSE + final merge from HTTP response. */
+let wrTimingPartial = {};
+let wrTimingState = { phases: {}, ticker: null };
+let wrLastAnalysisInput = null;
 
 function pushTraceRecord(d) {
   if (!d || typeof d !== 'object') return;
@@ -753,6 +973,14 @@ function appendHubEvent(d) {
     appendBrowserNav(d);
     return;
   }
+  if (k === 'website_reader_timing') {
+    mergeWebsiteReaderTimingEvent(d);
+    return;
+  }
+  if (k === 'website_reader_partial') {
+    mergeWebsiteReaderPartialEvent(d);
+    return;
+  }
   if (k === 'pipeline') {
     appendSystem(all, 'Pipeline', JSON.stringify(d));
     return;
@@ -870,6 +1098,171 @@ async function loadExplore() {
   $('#exploreBody').innerHTML = h || 'No data';
 }
 
+function mergeWebsiteReaderTimingEvent(d) {
+  if (!d || typeof d !== 'object') return;
+  const phase = d.phase;
+  const action = d.action || 'done';
+  const ms = d.ms;
+  if (!phase) return;
+  const now = Date.now();
+  if (!wrTimingState.phases[phase]) wrTimingState.phases[phase] = {};
+  const st = wrTimingState.phases[phase];
+  if (action === 'start') {
+    st.startAt = now;
+    st.done = false;
+    if (typeof ms === 'number') st.ms = ms;
+  } else {
+    if (!st.startAt) st.startAt = now;
+    st.done = true;
+    if (typeof ms === 'number') st.ms = ms;
+    else st.ms = now - st.startAt;
+  }
+  renderWebsiteReaderTiming(wrTimingPartial);
+}
+
+function applyWebsiteReaderScreenshotPayload(d) {
+  const shot = (d && d.screenshot_base64 && String(d.screenshot_base64).trim()) || '';
+  const img = $('#wrScreenshot');
+  if (!img) return;
+  if (shot) {
+    if (shot.startsWith('data:')) {
+      img.src = shot;
+    } else {
+      const mime = (d && d.screenshot_mime && String(d.screenshot_mime).includes('/'))
+        ? d.screenshot_mime
+        : 'image/png';
+      img.src = 'data:' + mime + ';base64,' + shot;
+    }
+    img.alt = 'Website screenshot preview';
+  } else {
+    img.removeAttribute('src');
+    img.alt = 'No screenshot captured';
+  }
+}
+
+function mergeWebsiteReaderPartialEvent(d) {
+  if (!d || typeof d !== 'object') return;
+  if (typeof d.snapshot_text === 'string' && d.snapshot_text) {
+    $('#wrSnapshot').textContent = d.snapshot_text;
+  }
+  if (d.screenshot_base64) {
+    applyWebsiteReaderScreenshotPayload(d);
+  }
+}
+
+function readerFieldConfBand(conf) {
+  const c = Number.isFinite(conf) ? conf : 0;
+  if (c >= 0.72) return 'high';
+  if (c >= 0.38) return 'mid';
+  return 'low';
+}
+
+function renderWebsiteReaderFields(rows) {
+  const wrap = $('#wrFields');
+  if (!wrap) return;
+  wrap.innerHTML = '';
+  if (!Array.isArray(rows) || !rows.length) {
+    wrap.textContent = 'No LLM field suggestions returned.';
+    return;
+  }
+  rows.forEach((row, i) => {
+    const art = document.createElement('article');
+    const label = row.field_label || row.label || '(unnamed field)';
+    const type = row.field_type || row.type || 'other';
+    const suggested = row.suggested_value != null ? String(row.suggested_value) : '';
+    const why = row.why != null ? String(row.why) : '';
+    const options = Array.isArray(row.options) ? row.options.filter((x) => String(x || '').trim()) : [];
+    const conf = Number.isFinite(row.confidence) ? row.confidence : 0;
+    const band = readerFieldConfBand(conf);
+    art.className = 'reader-field-card reader-field-conf-' + band;
+    art.setAttribute('aria-label', 'Field ' + (i + 1) + ': ' + label);
+
+    const confClass = 'reader-field-conf reader-field-conf-' + band;
+    const suggestedEmpty = !suggested.trim();
+    const sugClass = 'reader-field-suggested' + (suggestedEmpty ? ' reader-field-empty' : '');
+
+    art.innerHTML =
+      '<div class="reader-field-head">' +
+      '<span class="reader-field-idx">' + (i + 1) + '.</span>' +
+      '<span class="reader-field-label">' + escapeHtml(label) + '</span>' +
+      '<span class="reader-field-type">' + escapeHtml(type) + '</span>' +
+      '<span class="' + confClass + '">' + escapeHtml((conf * 100).toFixed(0)) + '% confidence</span>' +
+      '</div>' +
+      '<div class="reader-field-block">' +
+      '<div class="reader-field-block-label">Suggested answer</div>' +
+      '<div class="' + sugClass + '">' +
+      escapeHtml(suggestedEmpty ? '(none — check profile or fill manually)' : suggested) +
+      '</div></div>' +
+      (options.length
+        ? '<div class="reader-field-block"><div class="reader-field-block-label">Options</div>' +
+          '<div class="reader-field-options">' +
+          options.slice(0, 20).map((opt) => '<span class="reader-field-option-pill">' + escapeHtml(String(opt)) + '</span>').join('') +
+          '</div></div>'
+        : '') +
+      (why.trim()
+        ? '<div class="reader-field-block"><div class="reader-field-block-label">Why this value</div>' +
+          '<div class="reader-field-why">' + escapeHtml(why) + '</div></div>'
+        : '');
+    wrap.appendChild(art);
+  });
+}
+
+function fmtMs(ms) {
+  const n = Number(ms);
+  if (!Number.isFinite(n) || n < 0) return '-';
+  if (n < 1000) return n.toFixed(0) + ' ms';
+  return (n / 1000).toFixed(2) + ' s';
+}
+
+function fmtInt(x) {
+  const n = Number(x);
+  if (!Number.isFinite(n)) return '-';
+  return Math.round(n).toLocaleString();
+}
+
+function _phaseMs(name) {
+  if (wrTimingPartial && Number.isFinite(Number(wrTimingPartial[name + '_ms']))) {
+    return Number(wrTimingPartial[name + '_ms']);
+  }
+  const st = wrTimingState.phases[name];
+  if (!st) return null;
+  if (st.done && Number.isFinite(Number(st.ms))) return Number(st.ms);
+  if (st.startAt) return Date.now() - st.startAt;
+  return null;
+}
+
+function startWebsiteReaderTicker() {
+  if (wrTimingState.ticker) return;
+  wrTimingState.ticker = setInterval(() => {
+    renderWebsiteReaderTiming(wrTimingPartial);
+    const total = wrTimingState.phases.total;
+    if (total && total.done) {
+      clearInterval(wrTimingState.ticker);
+      wrTimingState.ticker = null;
+    }
+  }, 120);
+}
+
+function renderWebsiteReaderTiming(t) {
+  const el = $('#wrTiming');
+  if (!el) return;
+  const attach = fmtMs(_phaseMs('attach'));
+  const coord = fmtMs(_phaseMs('coordination'));
+  const nav = fmtMs(_phaseMs('navigation'));
+  const snapshot = fmtMs(_phaseMs('snapshot'));
+  const screenshot = fmtMs(_phaseMs('screenshot'));
+  const llm = fmtMs(_phaseMs('llm'));
+  const total = fmtMs(_phaseMs('total'));
+  el.textContent =
+    'Timing — Attach/setup: ' + attach +
+    ' | Coordination: ' + coord +
+    ' | Navigation/load: ' + nav +
+    ' | Snapshot: ' + snapshot +
+    ' | Screenshot: ' + screenshot +
+    ' | LLM analysis: ' + llm +
+    ' | Overall total: ' + total;
+}
+
 async function loadProfile() {
   const r = await fetch('/api/profile');
   const j = await r.json();
@@ -937,6 +1330,147 @@ $('#plRun').onclick = async () => {
   };
   const r = await fetch('/api/pipeline/run', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
   $('#plStatus').textContent = await r.text();
+};
+
+$('#wrRun').onclick = async () => {
+  const url = ($('#wrUrl').value || '').trim();
+  const useDom = !!($('#wrUseDom') && $('#wrUseDom').checked);
+  const useSnapshot = !!($('#wrUseSnapshot') && $('#wrUseSnapshot').checked);
+  if (!useDom && !useSnapshot) {
+    $('#wrStatus').textContent = 'Enable at least one LLM source: DOM or Snapshot.';
+    return;
+  }
+  if (!url) {
+    $('#wrStatus').textContent = 'Paste a URL first.';
+    return;
+  }
+  $('#wrStatus').textContent = 'Analyzing… timings update live via hub stream.';
+  $('#wrSnapshot').textContent = '';
+  $('#wrFields').textContent = '';
+  $('#wrScreenshot').removeAttribute('src');
+  wrLastAnalysisInput = null;
+  const wrRefreshBtn = $('#wrRefresh');
+  if (wrRefreshBtn) wrRefreshBtn.disabled = true;
+  wrTimingPartial = {};
+  wrTimingState = { phases: { total: { startAt: Date.now(), done: false } }, ticker: wrTimingState.ticker };
+  startWebsiteReaderTicker();
+  renderWebsiteReaderTiming(wrTimingPartial);
+  try {
+    const r = await fetch('/api/website-reader/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        url,
+        use_dom: useDom,
+        use_snapshot: useSnapshot,
+      }),
+    });
+    const text = await r.text();
+    let d;
+    try {
+      d = JSON.parse(text);
+    } catch (parseErr) {
+      if (!wrTimingState.phases.total) wrTimingState.phases.total = { startAt: Date.now(), done: true };
+      wrTimingState.phases.total.done = true;
+      $('#wrStatus').textContent =
+        'Analyze failed: the hub returned HTML instead of JSON (HTTP ' + r.status + '). ' +
+        'Restart the ApplyPilot hub from this project so the Website Reader API is loaded: `applypilot hub`. ' +
+        'First bytes: ' + text.slice(0, 120).replace(/\s+/g, ' ');
+      renderWebsiteReaderTiming(wrTimingPartial);
+      return;
+    }
+    if (!r.ok || !d.ok) {
+      if (!wrTimingState.phases.total) wrTimingState.phases.total = { startAt: Date.now(), done: true };
+      wrTimingState.phases.total.done = true;
+      const msg = (d && (d.error || d.message)) ? String(d.error || d.message) : '';
+      $('#wrStatus').textContent = 'Analyze failed: HTTP ' + r.status + (msg ? ' — ' + msg : '');
+      renderWebsiteReaderTiming(wrTimingPartial);
+      return;
+    }
+    $('#wrStatus').textContent =
+      'Done. ' +
+      (d.title ? ('Title: ' + d.title + ' · ') : '') +
+      (d.http_status != null ? ('HTTP ' + d.http_status + ' · ') : '') +
+      (d.url || '');
+    if (d.llm_stats) {
+      $('#wrStatus').textContent +=
+        '\nLLM payload (estimated): prompt ' + fmtInt(d.llm_stats.est_prompt_tokens) +
+        ' tokens (' + fmtInt(d.llm_stats.prompt_chars) + ' chars), response ' +
+        fmtInt(d.llm_stats.est_response_tokens) + ' tokens (' +
+        fmtInt(d.llm_stats.response_chars) + ' chars).';
+    }
+    $('#wrSnapshot').textContent = d.snapshot_text || '';
+    renderWebsiteReaderFields(d.llm_fields || []);
+    wrLastAnalysisInput = {
+      url: d.url || url,
+      title: d.title || '',
+      snapshot_text: d.snapshot_text || '',
+      dom_fields: Array.isArray(d.dom_fields) ? d.dom_fields : [],
+      use_dom: useDom,
+      use_snapshot: useSnapshot,
+    };
+    if (wrRefreshBtn) wrRefreshBtn.disabled = !wrLastAnalysisInput.dom_fields.length;
+    Object.assign(wrTimingPartial, d.timings || {});
+    if (!wrTimingState.phases.total) wrTimingState.phases.total = { startAt: Date.now(), done: true };
+    wrTimingState.phases.total.done = true;
+    if (Number.isFinite(Number((d.timings || {}).total_ms))) {
+      wrTimingState.phases.total.ms = Number((d.timings || {}).total_ms);
+    }
+    renderWebsiteReaderTiming(wrTimingPartial);
+    applyWebsiteReaderScreenshotPayload(d);
+  } catch (e) {
+    if (!wrTimingState.phases.total) wrTimingState.phases.total = { startAt: Date.now(), done: true };
+    wrTimingState.phases.total.done = true;
+    $('#wrStatus').textContent = 'Analyze failed: ' + String(e);
+    renderWebsiteReaderTiming(wrTimingPartial);
+  }
+};
+
+$('#wrRefresh').onclick = async () => {
+  const btn = $('#wrRefresh');
+  if (!wrLastAnalysisInput) {
+    $('#wrStatus').textContent = 'Run Analyze first so there is snapshot/field context to refresh.';
+    return;
+  }
+  const useDom = !!($('#wrUseDom') && $('#wrUseDom').checked);
+  const useSnapshot = !!($('#wrUseSnapshot') && $('#wrUseSnapshot').checked);
+  if (!useDom && !useSnapshot) {
+    $('#wrStatus').textContent = 'Enable at least one LLM source: DOM or Snapshot.';
+    return;
+  }
+  if (btn) btn.disabled = true;
+  $('#wrStatus').textContent = 'Refreshing LLM analysis…';
+  try {
+    const r = await fetch('/api/website-reader/refresh-analysis', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...wrLastAnalysisInput,
+        use_dom: useDom,
+        use_snapshot: useSnapshot,
+      }),
+    });
+    const d = await r.json();
+    if (!r.ok || !d.ok) {
+      $('#wrStatus').textContent = 'Refresh failed: HTTP ' + r.status + ' ' + (d.error || d.message || '');
+      return;
+    }
+    renderWebsiteReaderFields(d.llm_fields || []);
+    Object.assign(wrTimingPartial, d.timings || {});
+    renderWebsiteReaderTiming(wrTimingPartial);
+    $('#wrStatus').textContent = 'LLM analysis refreshed.';
+    if (d.llm_stats) {
+      $('#wrStatus').textContent +=
+        '\nLLM payload (estimated): prompt ' + fmtInt(d.llm_stats.est_prompt_tokens) +
+        ' tokens (' + fmtInt(d.llm_stats.prompt_chars) + ' chars), response ' +
+        fmtInt(d.llm_stats.est_response_tokens) + ' tokens (' +
+        fmtInt(d.llm_stats.response_chars) + ' chars).';
+    }
+  } catch (e) {
+    $('#wrStatus').textContent = 'Refresh failed: ' + String(e);
+  } finally {
+    if (btn) btn.disabled = false;
+  }
 };
 
 $('#apStop').onclick = async () => {
