@@ -223,31 +223,15 @@ def _llm_field_suggestions(
     url: str,
     title: str,
     fields: list[dict[str, Any]],
-    snapshot_text: str,
-    use_dom: bool = True,
-    use_snapshot: bool = True,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    if not use_dom and not use_snapshot:
+    if not fields:
         return [], {
             "prompt_chars": 0,
             "response_chars": 0,
             "est_prompt_tokens": 0,
             "est_response_tokens": 0,
         }
-    if use_dom and not fields:
-        return [], {
-            "prompt_chars": 0,
-            "response_chars": 0,
-            "est_prompt_tokens": 0,
-            "est_response_tokens": 0,
-        }
-    fields_text = json.dumps(fields, ensure_ascii=False)[:16_000] if use_dom else ""
-    snapshot_clip = snapshot_text[:20_000] if use_snapshot else ""
-    source_line = (
-        ("DOM" if use_dom else "") +
-        (" + " if use_dom and use_snapshot else "") +
-        ("SNAPSHOT" if use_snapshot else "")
-    )
+    fields_text = json.dumps(fields, ensure_ascii=False)[:16_000]
     prompt = f"""You are extracting visible form fields from a job application page.
 
 Return STRICT JSON only:
@@ -269,15 +253,13 @@ Rules:
 - Include only fields visibly rendered to humans.
 - Leave suggested_value empty.
 - Confidence must be between 0 and 1.
- - Use only these enabled data sources: {source_line}
 
 URL: {url}
 Page title: {title}
+
+Structured fields extracted from Playwright browser_snapshot:
+{fields_text}
 """
-    if use_dom:
-        prompt += f"\nDetected form controls (Playwright DOM scan):\n{fields_text}\n"
-    if use_snapshot:
-        prompt += f"\nAccessibility snapshot excerpt (Playwright):\n{snapshot_clip}\n"
     stats: dict[str, Any] = {
         "prompt_chars": len(prompt),
         "response_chars": 0,
@@ -713,9 +695,6 @@ Max 120 fields. No markdown.
 
 def analyze_website(
     url: str,
-    *,
-    use_dom: bool = True,
-    use_snapshot: bool = True,
 ) -> dict[str, Any]:
     """Read one website via prompt-driven Playwright MCP tool flow."""
     target = (url or "").strip()
@@ -739,9 +718,6 @@ def analyze_website(
         url=current_url,
         title=title,
         fields=dom_fields,
-        snapshot_text=snapshot_text,
-        use_dom=use_dom,
-        use_snapshot=use_snapshot,
     )
     llm_ms = int((time.perf_counter() - t_llm_start) * 1000)
     if not llm_fields:
@@ -777,7 +753,7 @@ def analyze_website(
             "total_ms": total_ms,
         },
         "llm_stats": llm_stats,
-        "llm_sources": {"dom": use_dom, "snapshot": use_snapshot},
+        "llm_sources": {"structured_fields": True},
     }
 
 
@@ -785,10 +761,7 @@ def refresh_llm_analysis(
     *,
     url: str,
     title: str,
-    snapshot_text: str,
     dom_fields: list[dict[str, Any]],
-    use_dom: bool = True,
-    use_snapshot: bool = True,
 ) -> dict[str, Any]:
     """Regenerate Website Reader field suggestions without recapturing page artifacts."""
     current_url = (url or "").strip()
@@ -801,9 +774,6 @@ def refresh_llm_analysis(
         url=current_url,
         title=title or "",
         fields=fields,
-        snapshot_text=snapshot_text or "",
-        use_dom=use_dom,
-        use_snapshot=use_snapshot,
     )
     llm_ms = int((time.perf_counter() - t_llm_start) * 1000)
     if not llm_fields:
@@ -819,5 +789,5 @@ def refresh_llm_analysis(
         "llm_fields": llm_fields,
         "timings": {"llm_ms": llm_ms},
         "llm_stats": llm_stats,
-        "llm_sources": {"dom": use_dom, "snapshot": use_snapshot},
+        "llm_sources": {"structured_fields": True},
     }

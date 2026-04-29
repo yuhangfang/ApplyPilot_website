@@ -378,9 +378,7 @@ class HubRequestHandler(BaseHTTPRequestHandler):
                 from applypilot.apply.website_reader import analyze_website
 
                 result = analyze_website(
-                    str(payload.get("url") or "").strip(),
-                    use_dom=bool(payload.get("use_dom", True)),
-                    use_snapshot=bool(payload.get("use_snapshot", True)),
+                    str(payload.get("url") or "").strip()
                 )
                 self._send_json(200, result)
             elif path == "/api/website-reader/refresh-analysis":
@@ -390,10 +388,7 @@ class HubRequestHandler(BaseHTTPRequestHandler):
                 result = refresh_llm_analysis(
                     url=str(payload.get("url") or "").strip(),
                     title=str(payload.get("title") or ""),
-                    snapshot_text=str(payload.get("snapshot_text") or ""),
                     dom_fields=payload.get("dom_fields") if isinstance(payload.get("dom_fields"), list) else [],
-                    use_dom=bool(payload.get("use_dom", True)),
-                    use_snapshot=bool(payload.get("use_snapshot", True)),
                 )
                 self._send_json(200, result)
             else:

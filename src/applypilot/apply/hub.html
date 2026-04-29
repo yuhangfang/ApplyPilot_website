@@ -143,21 +143,6 @@
     flex: 0 0 auto;
     white-space: nowrap;
   }
-  .reader-source-toggles {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    margin-top: 8px;
-    color: var(--muted);
-    font-size: 12px;
-  }
-  .reader-source-toggles label {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    margin: 0;
-    cursor: pointer;
-  }
   .reader-grid {
     display: grid;
     grid-template-columns: 1fr;
@@ -371,10 +356,6 @@
       <button type="button" class="primary" id="wrRun">Analyze</button>
       <button type="button" class="secondary" id="wrRefresh" disabled title="Re-run only LLM field analysis using current snapshot">Refresh LLM</button>
       <input type="text" id="wrUrl" placeholder="Paste website URL (https://...)" autocomplete="off" />
-    </div>
-    <div class="reader-source-toggles">
-      <label><input type="checkbox" id="wrUseDom" checked /> LLM source: DOM</label>
-      <label><input type="checkbox" id="wrUseSnapshot" checked /> LLM source: Snapshot</label>
     </div>
     <p class="hint" style="margin:8px 0 0;">Runs Playwright on the URL, captures an accessibility snapshot + screenshot, then asks the LLM to suggest form fields to fill.</p>
     <pre id="wrStatus" style="margin-top:8px"></pre>
@@ -1334,12 +1315,6 @@ $('#plRun').onclick = async () => {
 
 $('#wrRun').onclick = async () => {
   const url = ($('#wrUrl').value || '').trim();
-  const useDom = !!($('#wrUseDom') && $('#wrUseDom').checked);
-  const useSnapshot = !!($('#wrUseSnapshot') && $('#wrUseSnapshot').checked);
-  if (!useDom && !useSnapshot) {
-    $('#wrStatus').textContent = 'Enable at least one LLM source: DOM or Snapshot.';
-    return;
-  }
   if (!url) {
     $('#wrStatus').textContent = 'Paste a URL first.';
     return;
@@ -1359,11 +1334,7 @@ $('#wrRun').onclick = async () => {
     const r = await fetch('/api/website-reader/analyze', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        url,
-        use_dom: useDom,
-        use_snapshot: useSnapshot,
-      }),
+      body: JSON.stringify({ url }),
     });
     const text = await r.text();
     let d;
@@ -1406,8 +1377,6 @@ $('#wrRun').onclick = async () => {
       title: d.title || '',
       snapshot_text: d.snapshot_text || '',
       dom_fields: Array.isArray(d.dom_fields) ? d.dom_fields : [],
-      use_dom: useDom,
-      use_snapshot: useSnapshot,
     };
     if (wrRefreshBtn) wrRefreshBtn.disabled = !wrLastAnalysisInput.dom_fields.length;
     Object.assign(wrTimingPartial, d.timings || {});
@@ -1432,23 +1401,13 @@ $('#wrRefresh').onclick = async () => {
     $('#wrStatus').textContent = 'Run Analyze first so there is snapshot/field context to refresh.';
     return;
   }
-  const useDom = !!($('#wrUseDom') && $('#wrUseDom').checked);
-  const useSnapshot = !!($('#wrUseSnapshot') && $('#wrUseSnapshot').checked);
-  if (!useDom && !useSnapshot) {
-    $('#wrStatus').textContent = 'Enable at least one LLM source: DOM or Snapshot.';
-    return;
-  }
   if (btn) btn.disabled = true;
   $('#wrStatus').textContent = 'Refreshing LLM analysis…';
   try {
     const r = await fetch('/api/website-reader/refresh-analysis', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        ...wrLastAnalysisInput,
-        use_dom: useDom,
-        use_snapshot: useSnapshot,
-      }),
+      body: JSON.stringify(wrLastAnalysisInput),
     });
     const d = await r.json();
     if (!r.ok || !d.ok) {
